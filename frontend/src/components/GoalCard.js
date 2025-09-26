@@ -1,7 +1,10 @@
-import React from 'react';
-import { Calendar, TrendingUp, CheckCircle, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, TrendingUp, CheckCircle, Clock, Edit, BarChart3 } from 'lucide-react';
+import { API } from '../App';
+import axios from 'axios';
 
-const GoalCard = ({ goal, index }) => {
+const GoalCard = ({ goal, index, onUpdate }) => {
+  const [isUpdating, setIsUpdating] = useState(false);
   const getProgressPercentage = () => {
     return Math.min((goal.current_value / goal.target_value) * 100, 100);
   };
