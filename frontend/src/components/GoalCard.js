@@ -5,6 +5,18 @@ import axios from 'axios';
 
 const GoalCard = ({ goal, index, onUpdate }) => {
   const [isUpdating, setIsUpdating] = useState(false);
+  const updateProgress = async (newValue) => {
+    setIsUpdating(true);
+    try {
+      await axios.put(`${API}/goals/${goal.id}/progress?current_value=${newValue}`);
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Progress update error:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const getProgressPercentage = () => {
     return Math.min((goal.current_value / goal.target_value) * 100, 100);
   };
