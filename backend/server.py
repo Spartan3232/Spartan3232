@@ -189,6 +189,11 @@ def prepare_for_mongo(data):
 
 def parse_from_mongo(item):
     if isinstance(item, dict):
+        # Remove MongoDB ObjectId
+        if '_id' in item:
+            del item['_id']
+        
+        # Parse datetime fields
         for key, value in item.items():
             if key.endswith('_at') or key == 'deadline':
                 if isinstance(value, str):
