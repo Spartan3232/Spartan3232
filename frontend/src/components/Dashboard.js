@@ -1,21 +1,26 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { UserContext, API } from '../App';
 import axios from 'axios';
-import Sidebar from './Sidebar';
-import StatCard from './StatCard';
-import GoalCard from './GoalCard';
-import AIRecommendationCard from './AIRecommendationCard';
-import GoalCreationModal from './GoalCreationModal';
-import VerimlilikoAssessment from './VerimlilikoAssessment';
-import { MessageCircle, Target, TrendingUp, Users, Brain, Zap, Plus, BookOpen, CheckSquare, BarChart3 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { 
+  Brain, 
+  Target, 
+  TrendingUp, 
+  MessageCircle, 
+  Zap, 
+  Award,
+  BarChart3,
+  CheckCircle,
+  Clock,
+  Users,
+  LogOut
+} from 'lucide-react';
 
 const Dashboard = () => {
-  const { user } = useContext(UserContext);
+  const { user, logout } = useContext(UserContext);
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showGoalModal, setShowGoalModal] = useState(false);
-  const [showAssessmentModal, setShowAssessmentModal] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -36,14 +41,6 @@ const Dashboard = () => {
     }
   };
 
-  const handleGoalCreated = () => {
-    fetchDashboardData(); // Refresh dashboard data
-  };
-
-  const handleAssessmentCompleted = () => {
-    fetchDashboardData(); // Refresh dashboard data
-  };
-
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Günaydın';
@@ -51,19 +48,19 @@ const Dashboard = () => {
     return 'İyi akşamlar';
   };
 
-  const getUserTitle = () => {
-    return user?.role === 'bolge_muduru' ? 'Bölge Müdürü' : 'Tıbbi Satış Temsilcisi';
+  const getScoreColor = (score) => {
+    if (score >= 90) return 'text-green-600 bg-green-100';
+    if (score >= 75) return 'text-blue-600 bg-blue-100';
+    if (score >= 60) return 'text-yellow-600 bg-yellow-100';
+    return 'text-red-600 bg-red-100';
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-600 to-emerald-500 flex">
-        <Sidebar />
-        <div className="flex-1 flex items-center justify-center lg:ml-64">
-          <div className="text-center">
-            <div className="spinner w-16 h-16 mx-auto mb-4"></div>
-            <p className="text-white text-lg">Dashboard yükleniyor...</p>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-lg">Dashboard yükleniyor...</p>
         </div>
       </div>
     );
@@ -71,270 +68,227 @@ const Dashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-600 to-emerald-500 flex">
-        <Sidebar />
-        <div className="flex-1 flex items-center justify-center lg:ml-64">
-          <div className="text-center">
-            <div className="bg-red-500 text-white p-4 rounded-lg">
-              <p>{error}</p>
-              <button 
-                onClick={fetchDashboardData}
-                className="mt-2 px-4 py-2 bg-white text-red-500 rounded hover:bg-gray-100"
-              >
-                Tekrar Dene
-              </button>
-            </div>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center">
+        <div className="bg-red-100 border border-red-300 text-red-700 p-6 rounded-lg max-w-md">
+          <p className="mb-4">{error}</p>
+          <button 
+            onClick={fetchDashboardData}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            Tekrar Dene
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-emerald-500 flex">
-      <Sidebar />
-      
-      <main className="flex-1 lg:ml-64">
-        {/* Header */}
-        <div className="bg-white bg-opacity-10 backdrop-filter backdrop-blur-lg border-b border-white border-opacity-20">
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="animate-fade-in">
-                <h1 className="text-2xl font-bold text-white">
-                  {getGreeting()}, {user?.name}!
-                </h1>
-                <p className="text-blue-100 mt-1">
-                  {getUserTitle()} • ROTA VERİMLİLİK Koçluk Platformu
-                </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700">
+      {/* Header */}
+      <header className="bg-white/10 backdrop-blur-md border-b border-white/20">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                {getGreeting()}, {user?.name}!
+              </h1>
+              <p className="text-blue-100">
+                {user?.role === 'coach' ? 'Koç' : 'Satış Temsilcisi'} • AI Koçluk Sistemi
+              </p>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <div className="bg-white/20 rounded-full p-2">
+                <Brain className="w-6 h-6 text-white" />
               </div>
-              <div className="flex items-center space-x-4">
-                <div className="bg-white bg-opacity-20 rounded-full p-2">
-                  <Brain className="w-6 h-6 text-white" />
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-blue-100">AI Koç Aktif</p>
-                  <p className="text-xs text-blue-200">GPT-5 • Gemini • Claude</p>
-                </div>
-              </div>
+              <button
+                onClick={logout}
+                className="flex items-center space-x-2 px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+              >
+                <LogOut className="w-4 h-4 text-white" />
+                <span className="text-white text-sm">Çıkış</span>
+              </button>
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Main Content */}
-        <div className="p-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <StatCard
-              title="Toplam Hedefler"
-              value={dashboardData?.stats?.total_goals || 0}
-              icon={Target}
-              color="blue"
-              change="+12%"
-              changeType="positive"
-            />
-            <StatCard
-              title="Tamamlanan"
-              value={dashboardData?.stats?.completed_goals || 0}
-              icon={TrendingUp}
-              color="green"
-              change="+8%"
-              changeType="positive"
-            />
-            <StatCard
-              title="Başarı Oranı"
-              value={`${Math.round(dashboardData?.stats?.completion_rate || 0)}%`}
-              icon={Zap}
-              color="purple"
-              change="+5%"
-              changeType="positive"
-            />
-            <StatCard
-              title="VERİMLİLİK Değerlendirme"
-              value={dashboardData?.stats?.total_assessments || 0}
-              icon={BarChart3}
-              color="orange"
-              change="+25%"
-              changeType="positive"
-            />
-          </div>
-
-          {/* VERİMLİLİK Assessment Overview */}
-          {dashboardData?.stats?.verimlilik_topics && Object.keys(dashboardData.stats.verimlilik_topics).length > 0 && (
-            <div className="bg-white rounded-2xl shadow-strong p-6 mb-8 animate-fade-in">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center space-x-2">
-                <TrendingUp className="w-6 h-6 text-orange-600" />
-                <span>VERİMLİLİK Koçluk Alanları</span>
-              </h2>
-              <p className="text-gray-600 mb-4">En çok değerlendirilen Dr / Ecz Tanıtım Uygulamaları:</p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Object.entries(dashboardData.stats.verimlilik_topics)
-                  .sort(([,a], [,b]) => b - a)
-                  .slice(0, 6)
-                  .map(([topic, count]) => (
-                    <div key={topic} className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200">
-                      <h3 className="font-semibold text-gray-900 text-sm mb-2">{topic}</h3>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-orange-600">{count} değerlendirme</span>
-                        <div className="bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
-                          {count}
-                        </div>
-                      </div>
-                    </div>
-                ))}
-              </div>
-              
-              <div className="mt-4 text-center">
-                <button
-                  onClick={() => setShowAssessmentModal(true)}
-                  className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 btn-hover-lift flex items-center space-x-2 mx-auto"
-                >
-                  <BarChart3 className="w-5 h-5" />
-                  <span>Yeni VERİMLİLİK Değerlendirmesi</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Main Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Goals Section */}
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-2xl shadow-strong p-6 animate-fade-in">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Aktif Hedeflerim</h2>
-                  <button 
-                    onClick={() => setShowGoalModal(true)}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-emerald-500 text-white rounded-lg hover:from-blue-600 hover:to-emerald-600 transition-all duration-300 btn-hover-lift flex items-center space-x-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>ROTA Hedef</span>
-                  </button>
-                </div>
-                
-                <div className="space-y-4">
-                  {dashboardData?.recent_goals?.length > 0 ? (
-                    dashboardData.recent_goals.map((goal, index) => (
-                      <GoalCard key={goal.id} goal={goal} index={index} onUpdate={fetchDashboardData} />
-                    ))
-                  ) : (
-                    <div className="text-center py-12">
-                      <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500 text-lg mb-4">Henüz ROTA hedefi belirlenmemiş</p>
-                      <button 
-                        onClick={() => setShowGoalModal(true)}
-                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-emerald-500 text-white rounded-lg hover:from-blue-600 hover:to-emerald-600 transition-all duration-300 btn-hover-lift flex items-center space-x-2 mx-auto"
-                      >
-                        <Plus className="w-5 h-5" />
-                        <span>İlk ROTA Hedefinizi Belirleyin</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Performance Overview */}
+        {dashboardData && (
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">Performans Özeti</h2>
+              <div className={`px-4 py-2 rounded-full ${dashboardData.performance_level?.color ? 'text-white' : 'bg-gray-100'}`}
+                   style={{ backgroundColor: dashboardData.performance_level?.color }}>
+                <span className="font-semibold">{dashboardData.performance_level?.name}</span>
               </div>
             </div>
 
-            {/* AI Recommendations Sidebar */}
-            <div className="space-y-6">
-              <AIRecommendationCard />
-              
-              {/* Quick Actions */}
-              <div className="bg-white rounded-2xl shadow-strong p-6 animate-fade-in">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">Hızlı Eylemler</h3>
-                <div className="space-y-3">
-                  <button 
-                    onClick={() => window.location.href = '/ai-chat'}
-                    className="w-full flex items-center space-x-3 p-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 btn-hover-lift"
-                  >
-                    <MessageCircle className="w-5 h-5" />
-                    <span>AI Koç ile Sohbet</span>
-                  </button>
-                  <button 
-                    onClick={() => setShowAssessmentModal(true)}
-                    className="w-full flex items-center space-x-3 p-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 btn-hover-lift"
-                  >
-                    <BarChart3 className="w-5 h-5" />
-                    <span>VERİMLİLİK Değerlendir</span>
-                  </button>
-                  <button 
-                    onClick={() => setShowGoalModal(true)}
-                    className="w-full flex items-center space-x-3 p-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:from-green-600 hover:to-teal-600 transition-all duration-300 btn-hover-lift"
-                  >
-                    <Target className="w-5 h-5" />
-                    <span>ROTA Hedef Belirle</span>
-                  </button>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-gray-800 mb-1">
+                  {dashboardData.overall_score || 0}
+                </div>
+                <div className="text-sm text-gray-600">Genel Puan</div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full"
+                    style={{ width: `${dashboardData.overall_score || 0}%` }}
+                  ></div>
                 </div>
               </div>
 
-              {/* Recent Assessments */}
-              {dashboardData?.recent_assessments && dashboardData.recent_assessments.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-strong p-6 animate-fade-in">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">Son Değerlendirmeler</h3>
-                  <div className="space-y-3">
-                    {dashboardData.recent_assessments.slice(0, 3).map((assessment, index) => (
-                      <div key={assessment.id || index} className="bg-gray-50 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-900">
-                            {new Date(assessment.assessment_date).toLocaleDateString('tr-TR')}
-                          </span>
-                          <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
-                            {assessment.selected_topics?.length || 0} konu
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-600">
-                          {assessment.selected_topics?.slice(0, 2).join(', ') || 'Değerlendirme tamamlandı'}
-                          {assessment.selected_topics?.length > 2 && ` +${assessment.selected_topics.length - 2} daha`}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600 mb-1">
+                  {dashboardData.total_assessments || 0}
                 </div>
-              )}
+                <div className="text-sm text-gray-600">Toplam Değerlendirme</div>
+                <BarChart3 className="w-8 h-8 text-blue-500 mx-auto mt-2" />
+              </div>
 
-              {/* AI Model Status */}
-              <div className="bg-white rounded-2xl shadow-strong p-6 animate-fade-in">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">AI Model Durumu</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="text-sm font-medium">GPT-5</span>
-                    </div>
-                    <span className="text-xs text-green-600">Aktif</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="text-sm font-medium">Gemini 2.0</span>
-                    </div>
-                    <span className="text-xs text-green-600">Aktif</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="text-sm font-medium">Claude Sonnet</span>
-                    </div>
-                    <span className="text-xs text-green-600">Aktif</span>
-                  </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600 mb-1">
+                  {dashboardData.completed_goals || 0}
                 </div>
+                <div className="text-sm text-gray-600">Tamamlanan Hedef</div>
+                <CheckCircle className="w-8 h-8 text-green-500 mx-auto mt-2" />
+              </div>
+
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600 mb-1">
+                  {dashboardData.active_goals || 0}
+                </div>
+                <div className="text-sm text-gray-600">Aktif Hedef</div>
+                <Clock className="w-8 h-8 text-orange-500 mx-auto mt-2" />
               </div>
             </div>
           </div>
+        )}
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Link
+            to="/assessment"
+            className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 group"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="bg-gradient-to-r from-green-500 to-teal-600 p-3 rounded-xl group-hover:scale-110 transition-transform">
+                <Zap className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Hızlı Değerlendirme</h3>
+                <p className="text-sm text-gray-600">5 dakikada performans değerlendirmesi</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            to="/ai-coach"
+            className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 group"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="bg-gradient-to-r from-purple-500 to-pink-600 p-3 rounded-xl group-hover:scale-110 transition-transform">
+                <MessageCircle className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">AI Koç Sohbeti</h3>
+                <p className="text-sm text-gray-600">Yapay zeka ile koçluk görüşmesi</p>
+              </div>
+            </div>
+          </Link>
+
+          <button
+            onClick={() => {/* TODO: Create Goal Modal */}}
+            className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 group"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-3 rounded-xl group-hover:scale-110 transition-transform">
+                <Target className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-800">Hedef Belirle</h3>
+                <p className="text-sm text-gray-600">AI destekli hedef oluşturma</p>
+              </div>
+            </div>
+          </button>
         </div>
-      </main>
 
-      {/* Modals */}
-      <GoalCreationModal
-        isOpen={showGoalModal}
-        onClose={() => setShowGoalModal(false)}
-        onGoalCreated={handleGoalCreated}
-      />
+        {/* Area Performance */}
+        {dashboardData?.area_scores && Object.keys(dashboardData.area_scores).length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Alan Bazlı Performans</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(dashboardData.area_scores).map(([area, score]) => (
+                <div key={area} className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-semibold text-gray-800 text-sm">{area}</h4>
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${getScoreColor(score)}`}>
+                      {Math.round(score)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full"
+                      style={{ width: `${score}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-      <VerimlilikoAssessment
-        isOpen={showAssessmentModal}
-        onClose={() => setShowAssessmentModal(false)}
-        onAssessmentCompleted={handleAssessmentCompleted}
-      />
+        {/* Recent Assessments */}
+        {dashboardData?.recent_assessments && dashboardData.recent_assessments.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Son Değerlendirmeler</h2>
+            
+            <div className="space-y-4">
+              {dashboardData.recent_assessments.slice(0, 5).map((assessment, index) => (
+                <div key={assessment.id || index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-4">
+                    <div className="bg-gradient-to-r from-blue-500 to-purple-600 w-10 h-10 rounded-full flex items-center justify-center">
+                      <Award className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-800">{assessment.coaching_area}</h4>
+                      <p className="text-sm text-gray-600">
+                        {new Date(assessment.created_at).toLocaleDateString('tr-TR')}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="text-right">
+                    <div className={`text-lg font-bold ${getScoreColor(assessment.performance_score)}`}>
+                      {assessment.performance_score}/100
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {(!dashboardData?.recent_assessments || dashboardData.recent_assessments.length === 0) && (
+          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+            <Brain className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-800 mb-2">AI Koçluk Yolculuğuna Başlayın</h3>
+            <p className="text-gray-600 mb-6">
+              İlk değerlendirmenizi yaparak gelişim alanlarınızı keşfedin ve AI koçunuzla tanışın.
+            </p>
+            <Link
+              to="/assessment"
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-300"
+            >
+              <Zap className="w-5 h-5" />
+              <span>İlk Değerlendirmeni Yap</span>
+            </Link>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
