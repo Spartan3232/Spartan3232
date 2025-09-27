@@ -458,6 +458,41 @@ async def get_chat_history(user_id: str, limit: int = 50):
     
     return [ChatMessage(**parse_from_mongo(msg)) for msg in messages]
 
+@api_router.get("/rota/framework")
+async def get_rota_framework():
+    """Get the original ROTA framework for goal creation (backward compatibility)"""
+    original_framework = {
+        "ETKİNLİK": {
+            "Ürün Bilgisi": [
+                "Ürünün tüm endikasyon, yan etki gibi etki mekanizmasının eğitim modüllerinden çalışılması",
+                "Bölgede medikal eğitimi iyi olan bir TTS den destek alınması", 
+                "Tüm bilgiler ürün, medikal ve rekabet bilgileri konsolide edilir ve bölge toplantısında paylaşılır"
+            ],
+            "Medikal Bilgi": [
+                "Sorumlu olunan portföye yönelik medikal bilginin tamamının öğrenilmesi",
+                "Ekipte medikal eğitimi iyi olan bir TTS ile çalışması sağlanır",
+                "Farklı uzmanlık ve dr profillerine göre role playler yapılarak bilgilerin pekişitirilmesi"
+            ],
+            "Rekabet Bilgisi": [
+                "Mevcut ürünlerin majör rakiplerinin bilinmesi, brick bazında pazar payı belirlenmesi",
+                "Rakip bilgilerinin ve broşürlerinin toplanması, medikal içeriklerinin kıyaslanması",
+                "Rekabetin stratejilerinin bilinmesi ve önlemler alınması"
+            ],
+            "Bölge/Pazar Bilgisi": [
+                "Bölgenin üretim/tüketim odağının belirlenmesi ve çalışma prensipleri",
+                "SWOT analizini doğru yapabilmesi ve aksiyon oluşturma",
+                "IQVIA datasını analiz etme ve rapor oluşturma"
+            ],
+            "Hedefleme/Segmentasyon": [
+                "Tüm müşterilerin havuzunun excel halinde alınması ve puanlanması",
+                "Potansiyel sıralamasına göre doktor liste oluşturulması",
+                "Frekans-Plan-Ziyaret oranlarında realizasyon sağlanması"
+            ]
+        },
+        "VERİMLİLİK": dict(ROTA_VERIMLILIK_FRAMEWORK["VERİMLİLİK"])
+    }
+    return {"framework": original_framework}
+
 @api_router.get("/rota/verimlilik")
 async def get_verimlilik_framework():
     """Get the complete ROTA VERİMLİLİK framework"""
