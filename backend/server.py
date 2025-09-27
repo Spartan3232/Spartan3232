@@ -626,21 +626,21 @@ class AIGoalRequest(BaseModel):
     experience_level: str = "orta"
 
 @api_router.post("/ai/suggest-goal")
-async def suggest_goal_with_rota(user_id: str, focus_area: str = "", experience_level: str = ""):
+async def suggest_goal_with_rota(request: AIGoalRequest):
     try:
-        user = await db.users.find_one({"id": user_id})
+        user = await db.users.find_one({"id": request.user_id})
         if not user:
             raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
         
-        chat = await get_ai_chat("gpt-5", f"goal_suggestion_{user_id}")
+        chat = await get_ai_chat("gpt-5", f"goal_suggestion_{request.user_id}")
         
         prompt = f"""ROTA metodolojisine uygun bir gelişim hedefi öner.
 
 Kullanıcı Bilgileri:
 - İsim: {user['name']}
 - Rol: {'Bölge Müdürü' if user['role'] == 'bolge_muduru' else 'Tıbbi Satış Temsilcisi'}
-- Odaklanmak istediği alan: {focus_area or 'Genel gelişim'}
-- Deneyim seviyesi: {experience_level or 'Orta seviye'}
+- Odaklanmak istediği alan: {request.focus_area or 'Genel gelişim'}
+- Deneyim seviyesi: {request.experience_level or 'Orta seviye'}
 
 Lütfen şu formatta bir JSON cevap ver:
 {{
