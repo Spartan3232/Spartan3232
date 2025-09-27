@@ -5,8 +5,7 @@ import "./App.css";
 
 // Components
 import Dashboard from "./components/Dashboard";
-import QuickAssessment from "./components/QuickAssessment";
-import AICoach from "./components/AICoach";
+import AICoach from "./components/AICoach";  
 import Login from "./components/Login";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -20,8 +19,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing user in localStorage
-    const savedUser = localStorage.getItem('ai_coach_user');
+    const savedUser = localStorage.getItem('rota_coach_user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
@@ -30,12 +28,12 @@ function App() {
 
   const handleLogin = (userData) => {
     setUser(userData);
-    localStorage.setItem('ai_coach_user', JSON.stringify(userData));
+    localStorage.setItem('rota_coach_user', JSON.stringify(userData));
   };
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('ai_coach_user');
+    localStorage.removeItem('rota_coach_user');
   };
 
   if (isLoading) {
@@ -43,7 +41,7 @@ function App() {
       <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white text-lg">AI Koçluk Sistemi Yükleniyor...</p>
+          <p className="text-white text-lg">ROTA Koçluk Sistemi Yükleniyor...</p>
         </div>
       </div>
     );
@@ -59,7 +57,6 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/assessment" element={<QuickAssessment />} />
               <Route path="/ai-coach" element={<AICoach />} />
             </Routes>
           )}

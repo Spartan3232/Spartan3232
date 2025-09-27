@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends
+from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -20,139 +20,151 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app
-app = FastAPI(title="İlaç Satış AI Koçluk Sistemi API")
+app = FastAPI(title="ROTA Koçluk Chat API")
 api_router = APIRouter(prefix="/api")
 
-# Spesifik Ürün ve Branş Yapısı
-PRODUCTS = {
-    "Sidefer": {
-        "name": "Sidefer",
-        "category": "Demir Preparatı", 
-        "target_branches": ["Pediatri", "Kadın Doğum"],
-        "key_features": ["Yan etki profili düşük", "Ağızda renk oluşturma minimal", "Konvansiyonel demir preparatlarından farklı"],
-        "coaching_focus": ["Giriş cümleleri", "Yan etki yönetimi", "Pediatrist ve kadın doğum doktorları ile çalışma"]
+# ROTA Verimlilik Başlıkları ve NASIL Metodolojisi
+ROTA_BASLIKLAR = {
+    "Etkili giriş (İlgi oluşturma)": {
+        "nasil_1": "Sideferle ilgili ilgi oluşturacağını düşündüğün 15 farklı giriş cümlesini hazırlayıp benimle paylaşmanı bekliyorum (branş detayı da verilebilir). Hazırladığın bu giriş cümlelerini sahada bizzat uygulayacağız.",
+        "nasil_2": "Her tanıtım sonrasında ilgi durumunu birlikte değerlendirip arşivleyeceğiz. Belirlediğimiz gelişim alanları için role play çalışmaları yapacağız. Bir sonraki ROTA çalışmamızda bu role play çalışmalarını uygulayacağız.",
+        "nasil_3": "İstenilen duruma ulaşıldığında aksiyonu birlikte tamamlayacağız.",
+        "olcum": "Ziyaret başlangıcında doktor/eczacı ilgisi, ziyaret başarı oranı",
+        "hedef_ornek": "15 farklı giriş cümlesi hazırla ve 2 hafta içinde 10 ziyarette uygula"
     },
-    "Tümformlar": {
-        "name": "Tümformlar", 
-        "category": "Multivitamin",
-        "target_branches": ["Pediatri", "Dermatoloji", "Kadın Doğum"],
-        "key_features": ["Geniş spektrum vitamin", "Güvenli formül", "Çocuk uyumlu"],
-        "coaching_focus": ["Çoklu branş çalışması", "Vitamin önerisi teknikleri", "Aile hekimliği yaklaşımı"]
+    "Etkili soru sorma becerisi": {
+        "nasil_1": "Modiwake ile ilgili 5'er adet açık ve kapalı uçlu soru hazırlamanı ve benimle bir hafta içinde paylaşmanı bekliyorum.",
+        "nasil_2": "Hazırladığın bu soruları, ilk saha çalışmamızda, müşterilerinin itiraz veya ihtiyaçlarına yönelik rahatlatıcı ve bilgilendirici bir şekilde kullanmanı bekliyorum. Her soru sorma örneğini birlikte arşivleyip değerlendireceğiz.",
+        "nasil_3": "Gerekirse 3 adet örneği ben uygulayacağım.",
+        "olcum": "Soru etkinliği, müşteri tepkisi, diyalog kalitesi",
+        "hedef_ornek": "5 açık + 5 kapalı soru hazırla ve 1 hafta içinde 8 ziyarette test et"
     },
-    "Cistus Antivirüs Pastil": {
-        "name": "Cistus Antivirüs Pastil",
-        "category": "Bitkisel Antivirüs",
-        "target_branches": ["Pediatri", "Dermatoloji"],
-        "key_features": ["Doğal antivirüs", "Pastil formu", "Güvenli kullanım"],
-        "coaching_focus": ["Aktif dinleme örnekleri", "Doğal ürün sunumu", "Güven oluşturma"]
+    "Aktif dinleme": {
+        "nasil_1": "Cistusla ilgili 5 adet aktif dinleme örneği yapacağız. Her örnekte Cistus için benim söylediklerimi bana farklı kelimelerle anlatmanı bekliyorum. Bu role play çalışmalarını kaydedip birlikte yorumlayalım.",
+        "nasil_2": "Cistus için 4 eczacının düşüncelerini tekrar onlara farklı örneklerle anlatacağız. Her tanıtımı ziyaret sonrasında birlikte değerlendirip arşivleyeceğiz.",
+        "nasil_3": "Aktif dinleme ile ilgili 4 youtube videosunu araştırıp benimle paylaşmanı bekliyorum. Bu videoların yorumlarını ekip arkadaşlarına sunum halinde paylaşmanı bekliyorum.",
+        "olcum": "Tekrar doğruluğu, empati kurma, müşteri memnuniyeti",
+        "hedef_ornek": "5 aktif dinleme örneği uygula ve 2 hafta içinde 4 eczacı ile test et"
     },
-    "Dalincare Atocure": {
-        "name": "Dalincare Atocure",
-        "category": "Dermatoloji Bakım",
-        "target_branches": ["Dermatoloji", "Pediatri"],
-        "key_features": ["Atopik dermatit", "Cilt bakımı", "Güvenli formül"],
-        "coaching_focus": ["Dermatoloji materyali kullanımı", "Cilt bakım önerisi", "Anne-çocuk yaklaşımı"]
+    "İhtiyaçların ortaya çıkarılması ve giderilmesi": {
+        "nasil_1": "Clasem tabletle ilgili en önemli 5 KBB doktorunun Clasemi tercih etmeme nedenlerini tespit etmeni bekliyorum. Bu nedenlerin sebeplerini gidermek için taktiklerini belirlemeni ve benimle tartışmanı rica ediyorum.",
+        "nasil_2": "Bu sebepler; yanlış anlamadan mı, bilgi eksikliğinden mi yoksa ürünle ilgili önyargılardan mı kaynaklanıyor? Birlikte değerlendirip her biriyle ilgili taktiklerimizi arşivleyelim.",
+        "nasil_3": "Sahada yapacağımız ilk ROTA çalışmasında belirlediğimiz taktikleri uygulayacağız. Karşılıklı olarak mütabık kaldığımızda bu aksiyonu tamamlayacağız.",
+        "olcum": "İhtiyaç tespit doğruluğu, çözüm etkinliği, müşteri onayı",
+        "hedef_ornek": "5 KBB doktoruyla ihtiyaç analizi yap ve 3 hafta içinde çözüm taktikleri geliştir"
+    },
+    "İtirazları anlama ve karşılama": {
+        "nasil_1": "En önemli 5 pediatrist ve kadın doğum doktorunun Sidefer tercih etmeme sebepleri neler olduğunu ortaya çıkarmak önemlidir. Bunun için konuya özel etkili sorular sorarak itirazın ortaya çıkartılması sağlanmalıdır.",
+        "nasil_2": "Demir ürünleri ağızda renkler oluşturur, fakat Sidefer konvansiyonel demir preparatlarından daha az yan etkiler göstermektedir.",
+        "nasil_3": "İtiraz yönetimi role play çalışmaları ile pratik yapılır ve gerçek ziyaretlerde test edilir.",
+        "olcum": "İtiraz dönüşüm oranı, müşteri ikna seviyesi",
+        "hedef_ornek": "5 doktorda itiraz tespiti yap ve 2 hafta içinde karşılama teknikleri geliştir"
+    },
+    "Özellik - Avantaj/Fayda": {
+        "nasil_1": "Solopina ilgili 5 adet özellik - avantaj - fayda cümleni hazırlayıp 3 gün içinde benimle paylaşmanı bekliyorum.",
+        "nasil_2": "Bu 5 özellikle ilgili seninle role play çalışmaları yapacağız. Bu role play çalışmalarını 5 dahiliye doktorumuzda kullanıp sonuçlarını birlikte yorumlayıp arşivleyeceğiz.",
+        "nasil_3": "Başarılı örnekleri ekip arkadaşlarımızla veya merkez yöneticilerimle paylaşacağız.",
+        "olcum": "Fayda algısı, ürün değer proposition anlaşılması",
+        "hedef_ornek": "5 özellik-avantaj-fayda cümlesi hazırla ve 1 hafta içinde 5 doktorda test et"
+    },
+    "Tanıtım malzemesinin etkin kullanımı": {
+        "nasil_1": "Geçen ay dağıttığımız Dalin malzemesi/materyali dermatoloğun aklında kaldı mı (iz bıraktı mı)? 10 doktorumuzun geri bildirimini alıp raporlayacağız.",
+        "nasil_2": "Bu malzemelerin akılda kalıcıya ilgili 3 uygulamayı bizzat ben göstereceğim. İlk ROTA çalışmamızda yapacağın 5 adet tanıtımı birlikte değerlendirip aksiyonun tamamlanıp tamamlanmadığına birlikte karar vereceğiz.",
+        "nasil_3": "Malzeme etkisini maksimize etmek için kreatif kullanım teknikleri geliştirilir.",
+        "olcum": "Malzeme hatırlama oranı, görsel etki, satış artışı",
+        "hedef_ornek": "10 doktorla malzeme etkisi testi yap ve 2 hafta içinde iyileştirme planı oluştur"
+    },
+    "Olumlu davranışları destekleme": {
+        "nasil_1": "3 günlük saha çalışmanda yapacağın 40 tanıtımda müşterilerinin şirketimiz - ürünlerimiz - senin hakkındaki onurlandırıcı, olumlu, pozitif ifade - jest - mimiklerini not almanı ve benimle paylaşmanı bekliyorum.",
+        "nasil_2": "İlk ROTA çalışmamızda tanıtımlarımızı yine aynı doktorlarda yapıp birlikte yorumlayacağız. Farklılıkları birlikte değerlendireceğiz.",
+        "nasil_3": "3 adet olumlu izi, çalışma arkadaşların üzerinde gözlemleyeceğim. Geri bildirimlere göre aksiyonu tamamlayacağız.",
+        "olcum": "Pozitif geri bildirim sayısı, müşteri sadakati, motivasyon artışı",
+        "hedef_ornek": "40 ziyarette pozitif davranış kaydı tut ve 1 hafta içinde analiz et"
+    },
+    "Çoklu ürün çalışma becerisi": {
+        "nasil_1": "Belirlediğimiz 5 KBB doktorumuza Clasem tablet ve Montairi birlikte çalışıp gözlemlerimizi yorumlayacağız.",
+        "nasil_2": "Ürün geçişlerini role playlerle pratik haline getirmeyi planlıyoruz.",
+        "nasil_3": "İlk ROTA çalışmamızda yine aynı 5 KBB doktorumuza tanıtım yaparak çoklu ürün çalışma becerisini test edeceğiz.",
+        "olcum": "Ürün geçiş akıcılığı, çoklu satış başarısı, portföy yönetimi",
+        "hedef_ornek": "5 doktorda 2 ürün kombinasyonu test et ve 2 hafta içinde geçiş tekniği geliştir"
+    },
+    "Kısa tanıtım becerisi": {
+        "nasil_1": "Kısa tanıtım yaparak ikna edilecek ve reçetesine girilecek potansiyeli 4 üzeri olan 10 önemli doktorun belirlenecek. Bu 10 doktarla ilgili ürün sırası ve tanıtım içeriği planlanacak.",
+        "nasil_2": "Bu tanıtımlar öncelikle bana yapılacak ve geri bildirimlerle son haline verilerek, tanıtımın toplam süresi 1-3 dk. olarak belirlenmiştir.",
+        "nasil_3": "Önceden anlaşılan tanıtımlar aynı doktorlara uygulanacak. Sonuçların reçeteye dönüp dönmediği kontrol edilecek.",
+        "olcum": "Tanıtım süresi, ikna oranı, reçete dönüşümü",
+        "hedef_ornek": "10 doktor için 1-3 dk tanıtım hazırla ve 2 hafta içinde test et"
+    },
+    "Kapanış teknikleri (Özetleme ve talepte bulunmak)": {
+        "nasil_1": "Dapgeon ve Liniga ile ilgili belirlenen 7 dahiliye ve 3 endokrinoloji doktoru için kapanış ve reçete isteme cümlesi hazırlanıp benimle paylaşmanı planladık.",
+        "nasil_2": "Bu cümleler önce benimle roleplay yöntemi ile test edilecek, geri bildirimlerimiz arşivlenecek.",
+        "nasil_3": "Reçetelerde ürünler yer aldıkça aksiyon tamamlandı olarak kaydedilecek.",
+        "olcum": "Kapanış başarı oranı, reçete isteme etkinliği",
+        "hedef_ornek": "7+3 doktor için kapanış cümlesi hazırla ve 2 hafta içinde sahada test et"
+    },
+    "Toplantı planlama ve sunum becerileri analizi / takibi": {
+        "nasil_1": "Toplantı amacı ve lojistik planı doktorlarla paylaşılacak. Davetiyeler zamanında verildi mi, hatırlatma yapıldı mı kontrol edilecek.",
+        "nasil_2": "Toplantı sonrasında değerlendirmeler birlikte yapılacak ve arşivlenecek.",
+        "nasil_3": "Davranış değişikliği gerçekleşip gerçekleşmediği takip edilecek.",
+        "olcum": "Katılım oranı, davranış değişikliği, etkinlik ROI",
+        "hedef_ornek": "1 aylık toplantı planı hazırla ve etki değerlendirmesi yap"
+    },
+    "Sosyal kabul düzeyi": {
+        "nasil_1": "Her gününü içeren tek bir excel dosyası hazırlanacak. Bu dosyaya, hergün müşterilerden gelen talep adedi ve içeriği kaydedilecek.",
+        "nasil_2": "Gelen talepler niteliklerine göre oranlanacak. Bu oranlara göre sosyal stiller eğitimi tekrarlanacak.",
+        "nasil_3": "Farklılıklar belirlenecek ve istenilen duruma ulaşılması takip edilecek.",
+        "olcum": "Günlük talep sayısı, sosyal kabul oranı, ilişki kalitesi",
+        "hedef_ornek": "1 aylık günlük talep excel'i tut ve sosyal kabul analizi yap"
+    },
+    "Eczane özel etkinlik planlama, gerçekleştirme ve takip": {
+        "nasil_1": "53 eczanenin her biri için reçete kaynağı, çalıştığı depolar, rakip durumu, vitrin tanzimi sorularının cevapları excel'de toplanacak.",
+        "nasil_2": "Bu liste iki ayda bir güncellenerek paylaşılacak. Önemli değişiklikler belirtilecek.",
+        "nasil_3": "Liste yaşayan halde güncel tutulacak ve etkinlik planlaması buna göre yapılacak.",
+        "olcum": "Eczane veri güncellik oranı, etkinlik başarısı, satış artışı",
+        "hedef_ornek": "53 eczane için veri toplama ve 2 aylık güncelleme planı oluştur"
+    },
+    "Reçete analizi ve stok takibi": {
+        "nasil_1": "62 eczanenin Etna Combo stokları belirlenecek ve excel dosyasına işlenecek.",
+        "nasil_2": "Aylık çıkışlar aynı dosyaya eklenerek stok devir hızları hesaplanacak. Çıkan verilere göre tanıtım stratejileri belirlenecek.",
+        "nasil_3": "Bu stratejiler ROTA çalışmaları ile kontrol edilecek.",
+        "olcum": "Stok devir hızı, satış artışı, reçete analiz doğruluğu",
+        "hedef_ornek": "62 eczane için stok analizi yap ve 1 aylık strateji geliştir"
+    },
+    "Tablet ile tanıtım": {
+        "nasil_1": "Ziyaret sırasında ilgili ürün içeriğine en fazla 5 saniye içinde ulaşmanı bekliyorum. Gelebilecek soru ve itirazlara zamanında cevap verebilmeli, 10 adet role play çalışması yapacağız.",
+        "nasil_2": "Hastanelerin ortopedi ve FTR kliniklerinde tablet kullanarak tanıtımları birlikte değerlendirip arşivleyeceğiz.",
+        "nasil_3": "Aynı ünite ve branşlarda tableti kullanan farkları kaydedeceğiz. İstenilen duruma ulaştığımızda aksiyonu tamamlayacağız.",
+        "olcum": "Tablet kullanım hızı, dijital etkileşim kalitesi, teknoloji adapte etme",
+        "hedef_ornek": "5 saniye içinde içerik ulaşım hedefi ve 10 role play tamamla"
     }
 }
 
-BRANCHES = {
-    "Pediatri": {
-        "name": "Pediatri",
-        "description": "Çocuk sağlığı ve hastalıkları",
-        "key_doctors": ["Pediatrist", "Çocuk Doktoru"],
-        "approach": "Güven temelli, aile odaklı, güvenlik vurgusu",
-        "products": ["Sidefer", "Tümformlar", "Cistus Antivirüs Pastil", "Dalincare Atocure"]
+DEGERLENDIRME_SEVIYELERI = {
+    "Gelişmeli": {
+        "renk": "#F59E0B",
+        "aciklama": "Gelişim alanı var, yoğun koçluk gerekli",
+        "puan_araligi": [0, 69],
+        "yaklasim": "Detaylı koçluk, adım adım rehberlik, sık takip"
     },
-    "Dermatoloji": {
-        "name": "Dermatoloji", 
-        "description": "Cilt hastalıkları ve estetik",
-        "key_doctors": ["Dermatolog", "Cilt Doktoru"],
-        "approach": "Görsel kanıt odaklı, sonuç temelli, estetik değer",
-        "products": ["Dalincare Atocure", "Cistus Antivirüs Pastil", "Tümformlar"]
+    "Başarılı": {
+        "renk": "#3B82F6", 
+        "aciklama": "Hedefleri karşılıyor, iyileştirme alanları var",
+        "puan_araligi": [70, 89],
+        "yaklasim": "Pekiştirme, ileri teknikler, mentorluk"
     },
-    "Kadın Doğum": {
-        "name": "Kadın Doğum",
-        "description": "Kadın sağlığı ve obstetrik",
-        "key_doctors": ["Jinekolog", "Kadın Doğum Uzmanı"],
-        "approach": "Kanıt temelli, güvenlik odaklı, hormonal yaklaşım",
-        "products": ["Sidefer", "Tümformlar"]
+    "Üstün Başarılı": {
+        "renk": "#10B981",
+        "aciklama": "Rol model seviyesi, başkalarına örnek",
+        "puan_araligi": [90, 100], 
+        "yaklasim": "Rol model olma, ekip liderliği, yenilik geliştirme"
     }
 }
 
-# Mümessil ve Brick Yapısı
-REGIONS = {
-    "İstanbul Anadolu": ["Kadıköy", "Üsküdar", "Kartal", "Maltepe", "Pendik"],
-    "İstanbul Avrupa": ["Beyoğlu", "Şişli", "Beşiktaş", "Bakırköy", "Zeytinburnu"],
-    "Ankara": ["Çankaya", "Keçiören", "Yenimahalle", "Mamak", "Sincan"],
-    "İzmir": ["Konak", "Karşıyaka", "Bornova", "Bayraklı", "Buca"],
-    "Bursa": ["Nilüfer", "Osmangazi", "Yıldırım", "Mudanya", "Gemlik"]
-}
-
-# AI Koçluk Framework - Ürün ve Branş Odaklı
-COACHING_AREAS = {
-    "Ürün Bilgisi ve Sunum": {
-        "description": "Ürün spesifik bilgi ve etkili sunum teknikleri",
-        "product_specific": True,
-        "branch_specific": True,
-        "key_skills": ["Ürün özellikleri", "Klinik kanıtlar", "Rakip karşılaştırması", "Dozaj ve kullanım"],
-        "rota_methods": ["Ürün eğitim modüllerinden çalışma", "TTS desteği alma", "Role play yapma"]
-    },
-    "Branş Spesifik İletişim": {
-        "description": "Pediatri, Dermatoloji, Kadın Doğum doktorları ile özel iletişim",
-        "product_specific": False, 
-        "branch_specific": True,
-        "key_skills": ["Branş dili", "Hasta profili anlama", "Profesyonel yaklaşım", "Güven oluşturma"],
-        "rota_methods": ["Doktor profil analizi", "Sosyal stil belirleme", "Branş özel giriş teknikleri"]
-    },
-    "Eczane Çalışmaları": {
-        "description": "Eczane ile etkili çalışma ve stok yönetimi",
-        "product_specific": True,
-        "branch_specific": False,
-        "key_skills": ["Stok analizi", "Reçete takibi", "Eczacı ilişkileri", "Kampanya yönetimi"],
-        "rota_methods": ["Stok excel analizi", "Devir hızı hesaplama", "Eczane özel etkinlik planlama"]
-    },
-    "Brick Yönetimi": {
-        "description": "Bölge bazlı hedefleme ve ziyaret optimizasyonu",
-        "product_specific": False,
-        "branch_specific": True,
-        "key_skills": ["Hedef belirleme", "Ziyaret planlaması", "Potansiyel analizi", "Rakip takibi"],
-        "rota_methods": ["Brick potansiyel belirleme", "IQVIA analizi", "Ziyaret frekans optimizasyonu"]
-    },
-    "Giriş ve İlgi Oluşturma": {
-        "description": "Etkili ziyaret başlangıcı ve doktor ilgisi çekme",
-        "product_specific": True,
-        "branch_specific": True, 
-        "key_skills": ["İlgi çekici girişler", "Branş uygun dil", "Merak uyandırma", "Profesyonel yaklaşım"],
-        "rota_methods": ["15 farklı giriş cümlesi hazırlama", "Branş spesifik örnekler", "Role play test"]
-    }
-}
-
-PERFORMANCE_LEVELS = {
-    "excellent": {
-        "name": "Mükemmel",
-        "description": "Rol model seviyesi, diğerlerine örnek",
-        "color": "#10B981",
-        "score_range": [90, 100]
-    },
-    "good": {
-        "name": "İyi", 
-        "description": "Hedefleri karşılıyor, tutarlı performans",
-        "color": "#3B82F6",
-        "score_range": [75, 89]
-    },
-    "developing": {
-        "name": "Gelişiyor",
-        "description": "İlerleme kaydediyor, destek gerekli",
-        "color": "#F59E0B",
-        "score_range": [60, 74]
-    },
-    "needs_support": {
-        "name": "Destek Gerekli",
-        "description": "Yoğun koçluk ve rehberlik gerekli", 
-        "color": "#EF4444",
-        "score_range": [0, 59]
-    }
+OGRENME_STILLERI = {
+    "Aktivist": "Deneyim odaklı, pratik yaparak öğrenir",
+    "Teorisyen": "Kavramsal öğrenme, sistem ve modelleri sever",
+    "Reflektör": "Gözlem yaparak, düşünerek öğrenir",
+    "Pragmatist": "Uygulama odaklı, sonuç temelli öğrenir"
 }
 
 # Data Models
@@ -160,102 +172,70 @@ class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     email: str
-    role: str  # "coach" or "sales_rep"  
-    region: str = ""
-    brick: str = ""
-    responsible_products: List[str] = []
-    target_branches: List[str] = []
+    role: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserCreate(BaseModel):
     name: str
     email: str
     role: str
-    region: str = ""
-    brick: str = ""
-    responsible_products: List[str] = []
-    target_branches: List[str] = []
 
-class ProductBranchAssessment(BaseModel):
+class ROTASession(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
-    coach_id: str
-    coaching_area: str
-    selected_product: str
-    selected_branch: str
-    performance_score: int
-    strengths: List[str]
-    improvement_areas: List[str]
-    ai_feedback: str
-    action_plan: List[str]
-    rota_recommendations: List[str] = []
+    baslik: str
+    seviye: str
+    ai_response: str
+    smart_hedefler: List[str] = []
+    nasil_adimlar: List[str] = []
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class ProductBranchAssessmentCreate(BaseModel):
-    user_id: str
-    coach_id: str
-    coaching_area: str
-    selected_product: str = ""
-    selected_branch: str = ""
-    performance_score: int
-    strengths: List[str]
-    improvement_areas: List[str]
-
-class ChatMessage(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    user_id: str
-    message: str
-    response: str
-    context: str = ""
-    product_context: str = ""
-    branch_context: str = ""
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ChatRequest(BaseModel):
     user_id: str
     message: str
-    context: str = ""
-    product_focus: str = ""
-    branch_focus: str = ""
 
 # AI Configuration
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 
-async def get_ai_coach(user_id: str, coaching_context: str = ""):
-    """Get AI coach with pharmaceutical sales expertise"""
-    system_message = f"""Sen uzman bir ilaç satış koçusun. Türkiye'deki tıbbi satış temsilcilerine özel koçluk yapıyorsun.
+async def get_rota_coach(user_id: str):
+    """ROTA metodolojisi ile özelleştirilmiş AI koç"""
+    system_message = f"""Sen uzman bir ROTA koçusun. İlaç sektöründe satış temsilcilerine koçluk yapıyorsun.
 
-Sorumlu Olduğun Ürünler:
-{json.dumps(PRODUCTS, ensure_ascii=False, indent=2)}
+ROTA Verimlilik Başlıkları ve NASIL Metodolojisi:
+{json.dumps(ROTA_BASLIKLAR, ensure_ascii=False, indent=2)}
 
-Çalıştığın Branşlar:
-{json.dumps(BRANCHES, ensure_ascii=False, indent=2)}
+Değerlendirme Seviyeleri:
+{json.dumps(DEGERLENDIRME_SEVIYELERI, ensure_ascii=False, indent=2)}
 
-Koçluk Alanları:
-{json.dumps(COACHING_AREAS, ensure_ascii=False, indent=2)}
+Öğrenme Stilleri:
+{json.dumps(OGRENME_STILLERI, ensure_ascii=False, indent=2)}
 
-Performans Seviyeleri:
-{json.dumps(PERFORMANCE_LEVELS, ensure_ascii=False, indent=2)}
+Ürünlerimiz: Sidefer, Cistus Antivirüs Pastil, Dalincare Atocure, Tümformlar
+Branşlarımız: Pediatri, Dermatoloji, Kadın Doğum + Eczaneler
 
-Bölge Yapısı:
-{json.dumps(REGIONS, ensure_ascii=False, indent=2)}
+GÖREV: Kullanıcının mesajlarını analiz et ve şu format ile yanıtla:
 
-{coaching_context}
+Eğer başlık seçimi + seviye belirtirse:
+1. Seviyeye özel yorum yap
+2. NASIL 1-2-3 adımlarını sun
+3. SMART hedefler oluştur (özellikle Gelişmeli için detaylı)
+4. Öğrenme stilini sor ve uyarla
+5. Motivasyonel ol, emoji kullan
 
-Özel Görevlerin:
-- Ürün-branş kombinasyonuna özel koçluk yap
-- ROTA metodolojisi kullan (NASIL 1-2-3)
-- Sidefer, Cistus, Dalincare, Tümformlar ürünlerine özel örnekler ver
-- Pediatri, Dermatoloji, Kadın Doğum branş yaklaşımları kullan
-- Brick ve eczane bazlı stratejiler öner
-- Türkiye ilaç sektörüne uygun dil kullan
-- Spesifik, uygulanabilir ve ölçülebilir öneriler sun
+ÖZEL DİKKAT:
+- "Gelişmeli" seviye için çok detaylı koçluk yap
+- Gerçek ürün isimleri kullan (Sidefer, Cistus vb.)
+- Role play örnekleri ver
+- Ölçülebilir hedefler koy
+- Türkçe ve samimi dil kullan
 
-Her zaman Türkçe cevap ver ve profesyonel ton kullan."""
+Örnek Kullanım:
+Kullanıcı: "Başlık: Etkili giriş, Seviye: Gelişmeli"
+Sen: Detaylı analiz + NASIL adımlar + SMART hedefler + öğrenme stili sorusu"""
 
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
-        session_id=f"coach_{user_id}",
+        session_id=f"rota_coach_{user_id}",
         system_message=system_message
     )
     
@@ -272,13 +252,10 @@ def prepare_for_mongo(data):
 
 def parse_from_mongo(item):
     if isinstance(item, dict):
-        # Remove MongoDB ObjectId
         if '_id' in item:
             del item['_id']
-        
-        # Parse datetime fields
         for key, value in item.items():
-            if key.endswith('_at') or key == 'deadline':
+            if key.endswith('_at'):
                 if isinstance(value, str):
                     try:
                         item[key] = datetime.fromisoformat(value)
@@ -286,32 +263,18 @@ def parse_from_mongo(item):
                         pass
     return item
 
-def get_performance_level(score):
-    for level_key, level_data in PERFORMANCE_LEVELS.items():
-        if level_data["score_range"][0] <= score <= level_data["score_range"][1]:
-            return level_key, level_data
-    return "needs_support", PERFORMANCE_LEVELS["needs_support"]
-
-# API Routes
+# Routes
 @api_router.get("/")
 async def root():
-    return {"message": "İlaç Satış AI Koçluk Sistemi API v2.0 - Ürün & Branş Odaklı"}
+    return {"message": "ROTA Chat Koçluk API v1.0 - Başlangıç"}
 
-@api_router.get("/products")
-async def get_products():
-    return {"products": PRODUCTS}
+@api_router.get("/rota/basliklar")
+async def get_rota_basliklar():
+    return {"basliklar": list(ROTA_BASLIKLAR.keys())}
 
-@api_router.get("/branches") 
-async def get_branches():
-    return {"branches": BRANCHES}
-
-@api_router.get("/regions")
-async def get_regions():
-    return {"regions": REGIONS}
-
-@api_router.get("/coaching-areas")
-async def get_coaching_areas():
-    return {"areas": COACHING_AREAS}
+@api_router.get("/rota/seviyeler") 
+async def get_seviyeler():
+    return {"seviyeler": DEGERLENDIRME_SEVIYELERI}
 
 @api_router.post("/users", response_model=User)
 async def create_user(user_data: UserCreate):
@@ -320,195 +283,104 @@ async def create_user(user_data: UserCreate):
     await db.users.insert_one(user_doc)
     return user
 
-@api_router.get("/users/{user_id}", response_model=User)
-async def get_user(user_id: str):
-    user = await db.users.find_one({"id": user_id})
-    if not user:
-        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
-    return User(**parse_from_mongo(user))
-
-@api_router.put("/users/{user_id}", response_model=User)
-async def update_user(user_id: str, user_data: Dict[str, Any]):
-    result = await db.users.update_one(
-        {"id": user_id}, 
-        {"$set": user_data}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
-    
-    user = await db.users.find_one({"id": user_id})
-    return User(**parse_from_mongo(user))
-
-@api_router.post("/assessment/product-branch", response_model=ProductBranchAssessment)
-async def create_product_branch_assessment(assessment_data: ProductBranchAssessmentCreate):
-    try:
-        # Get performance level
-        level_key, level_data = get_performance_level(assessment_data.performance_score)
-        
-        # Get user info
-        user = await db.users.find_one({"id": assessment_data.user_id})
-        if not user:
-            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
-        
-        # Get product and branch context
-        product_info = PRODUCTS.get(assessment_data.selected_product, {})
-        branch_info = BRANCHES.get(assessment_data.selected_branch, {})
-        
-        # Prepare AI context
-        context = f"""
-Değerlendirme Bağlamı:
-- Kullanıcı: {user['name']} ({user['role']})
-- Ürün: {assessment_data.selected_product} - {product_info.get('category', '')}
-- Branş: {assessment_data.selected_branch} - {branch_info.get('description', '')}
-- Alan: {assessment_data.coaching_area}
-- Puan: {assessment_data.performance_score}/100
-- Seviye: {level_data['name']} ({level_data['description']})
-- Güçlü Yönler: {', '.join(assessment_data.strengths)}
-- Gelişim Alanları: {', '.join(assessment_data.improvement_areas)}
-
-Ürün Özellikleri: {', '.join(product_info.get('key_features', []))}
-Branş Yaklaşımı: {branch_info.get('approach', '')}
-
-ROTA metodolojisine uygun olarak:
-1. Bu ürün-branş kombinasyonu için spesifik geri bildirim ver
-2. 3 ROTA aksiyon adımı (NASIL 1-2-3) öner
-3. Ölçülebilir hedefler belirle
-"""
-
-        # Get AI feedback
-        ai_coach = await get_ai_coach(assessment_data.user_id, context)
-        user_message = UserMessage(
-            text=f"{assessment_data.selected_product} ürünü ile {assessment_data.selected_branch} branşında {assessment_data.coaching_area} alanında {assessment_data.performance_score} puan alan {user['name']} için ROTA koçluk geri bildirimi ve aksiyon planı oluştur."
-        )
-        
-        ai_response = await ai_coach.send_message(user_message)
-        
-        # Extract action plan and ROTA recommendations
-        action_plan = []
-        rota_recommendations = []
-        lines = ai_response.split('\n')
-        
-        for line in lines:
-            if any(keyword in line.lower() for keyword in ['1.', '2.', '3.', 'nasıl 1', 'nasıl 2', 'nasıl 3']):
-                cleaned = line.strip().lstrip('123.-•').strip()
-                if len(cleaned) > 10:
-                    if 'nasıl' in line.lower():
-                        rota_recommendations.append(cleaned)
-                    else:
-                        action_plan.append(cleaned)
-        
-        if not action_plan:
-            action_plan = [
-                f"{assessment_data.selected_product} ürün bilgisini derinleştir",
-                f"{assessment_data.selected_branch} branş yaklaşımını pratik et",
-                "Haftalık koçluk seansı planla"
-            ]
-        
-        if not rota_recommendations:
-            coaching_methods = COACHING_AREAS.get(assessment_data.coaching_area, {}).get('rota_methods', [])
-            rota_recommendations = coaching_methods[:3] if coaching_methods else [
-                "NASIL 1: Eğitim modüllerinden çalış",
-                "NASIL 2: Deneyimli TTS desteği al", 
-                "NASIL 3: Role play ile pratik yap"
-            ]
-        
-        # Create assessment
-        assessment = ProductBranchAssessment(
-            user_id=assessment_data.user_id,
-            coach_id=assessment_data.coach_id,
-            coaching_area=assessment_data.coaching_area,
-            selected_product=assessment_data.selected_product,
-            selected_branch=assessment_data.selected_branch,
-            performance_score=assessment_data.performance_score,
-            strengths=assessment_data.strengths,
-            improvement_areas=assessment_data.improvement_areas,
-            ai_feedback=ai_response,
-            action_plan=action_plan[:3],
-            rota_recommendations=rota_recommendations[:3]
-        )
-        
-        assessment_doc = prepare_for_mongo(assessment.dict())
-        await db.product_branch_assessments.insert_one(assessment_doc)
-        
-        return assessment
-        
-    except Exception as e:
-        logging.error(f"Product-branch assessment error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Değerlendirme hatası: {str(e)}")
-
-@api_router.get("/assessments/{user_id}")
-async def get_user_assessments(user_id: str, limit: int = 10):
-    assessments_raw = await db.product_branch_assessments.find(
-        {"user_id": user_id}
-    ).sort("created_at", -1).limit(limit).to_list(limit)
-    
-    assessments = []
-    for assessment in assessments_raw:
-        clean_assessment = parse_from_mongo(assessment)
-        assessments.append(clean_assessment)
-    
-    return assessments
-
 @api_router.post("/chat")
-async def chat_with_ai_coach(chat_request: ChatRequest):
+async def rota_chat(chat_request: ChatRequest):
     try:
         user = await db.users.find_one({"id": chat_request.user_id})
         if not user:
             raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
         
-        # Get user's recent assessments for context
-        recent_assessments = await db.product_branch_assessments.find(
+        # Get recent sessions for context
+        recent_sessions = await db.rota_sessions.find(
             {"user_id": chat_request.user_id}
         ).sort("created_at", -1).limit(3).to_list(3)
         
-        # Get product and branch context
-        product_info = ""
-        branch_info = ""
-        
-        if chat_request.product_focus:
-            product_data = PRODUCTS.get(chat_request.product_focus, {})
-            product_info = f"\nOdak Ürün: {chat_request.product_focus} - {product_data.get('description', '')}"
-        
-        if chat_request.branch_focus:
-            branch_data = BRANCHES.get(chat_request.branch_focus, {}) 
-            branch_info = f"\nOdak Branş: {chat_request.branch_focus} - {branch_data.get('description', '')}"
+        session_context = ""
+        if recent_sessions:
+            session_context = f"\nSon Değerlendirmeler:\n" + "\n".join([
+                f"- {s.get('baslik', '')}: {s.get('seviye', '')}" 
+                for s in recent_sessions
+            ])
         
         context = f"""
 Kullanıcı: {user['name']} ({user['role']})
-Bölge: {user.get('region', 'Belirtilmemiş')}
-Brick: {user.get('brick', 'Belirtilmemiş')}
-Sorumlu Ürünler: {', '.join(user.get('responsible_products', []))}
-Hedef Branşlar: {', '.join(user.get('target_branches', []))}
-{product_info}
-{branch_info}
-{chat_request.context}
+{session_context}
 
-Son Değerlendirmeler:
-{chr(10).join([f"- {a.get('selected_product', '')}/{a.get('selected_branch', '')} - {a.get('coaching_area', '')}: {a.get('performance_score', 0)}/100" for a in recent_assessments]) if recent_assessments else "Henüz değerlendirme yapılmamış"}
+Kullanıcı Mesajı: {chat_request.message}
 """
         
-        ai_coach = await get_ai_coach(chat_request.user_id, context)
-        user_message = UserMessage(text=chat_request.message)
+        ai_coach = await get_rota_coach(chat_request.user_id)
+        
+        # Add context to the message
+        enhanced_message = f"""
+Koçluk talebi: {chat_request.message}
+
+Kullanıcı bilgisi: {user['name']} - {user['role']}
+{session_context}
+"""
+        
+        user_message = UserMessage(text=enhanced_message)
         response = await ai_coach.send_message(user_message)
         
-        # Save chat
-        chat_message = ChatMessage(
-            user_id=chat_request.user_id,
-            message=chat_request.message,
-            response=response,
-            context=chat_request.context,
-            product_context=chat_request.product_focus,
-            branch_context=chat_request.branch_focus
-        )
+        # Parse response to extract structured data if it's a coaching session
+        baslik = ""
+        seviye = ""
         
-        chat_doc = prepare_for_mongo(chat_message.dict())
-        await db.chat_messages.insert_one(chat_doc)
+        message_lower = chat_request.message.lower()
+        for baslik_key in ROTA_BASLIKLAR.keys():
+            if baslik_key.lower() in message_lower:
+                baslik = baslik_key
+                break
         
-        return {"response": response}
+        for seviye_key in DEGERLENDIRME_SEVIYELERI.keys():
+            if seviye_key.lower() in message_lower:
+                seviye = seviye_key
+                break
+        
+        # If this was a structured coaching request, save it
+        if baslik and seviye:
+            # Extract SMART goals and NASIL steps from AI response
+            smart_hedefler = []
+            nasil_adimlar = []
+            
+            lines = response.split('\n')
+            for line in lines:
+                if 'smart' in line.lower() and any(word in line.lower() for word in ['hedef', 'goal', 'amaç']):
+                    smart_hedefler.append(line.strip())
+                elif 'nasıl' in line.lower():
+                    nasil_adimlar.append(line.strip())
+            
+            # Save structured session
+            rota_session = ROTASession(
+                user_id=chat_request.user_id,
+                baslik=baslik,
+                seviye=seviye,
+                ai_response=response,
+                smart_hedefler=smart_hedefler[:3],  # Max 3
+                nasil_adimlar=nasil_adimlar[:3]    # Max 3
+            )
+            
+            session_doc = prepare_for_mongo(rota_session.dict())
+            await db.rota_sessions.insert_one(session_doc)
+        
+        return {
+            "response": response,
+            "baslik": baslik,
+            "seviye": seviye,
+            "session_saved": bool(baslik and seviye)
+        }
         
     except Exception as e:
         logging.error(f"Chat error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Sohbet hatası: {str(e)}")
+
+@api_router.get("/sessions/{user_id}")
+async def get_user_sessions(user_id: str, limit: int = 20):
+    sessions_raw = await db.rota_sessions.find(
+        {"user_id": user_id}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    return [parse_from_mongo(session) for session in sessions_raw]
 
 @api_router.get("/dashboard/{user_id}")
 async def get_dashboard_data(user_id: str):
@@ -519,54 +391,47 @@ async def get_dashboard_data(user_id: str):
         
         user_clean = parse_from_mongo(user)
         
-        # Get assessments
-        assessments_raw = await db.product_branch_assessments.find({"user_id": user_id}).to_list(100)
-        assessments = [parse_from_mongo(assessment) for assessment in assessments_raw]
+        # Get ROTA sessions
+        sessions_raw = await db.rota_sessions.find({"user_id": user_id}).to_list(100)
+        sessions = [parse_from_mongo(session) for session in sessions_raw]
         
         # Calculate stats
-        avg_score = 0
-        if assessments:
-            scores = [a.get("performance_score", 0) for a in assessments]
-            avg_score = sum(scores) / len(scores) if scores else 0
+        total_sessions = len(sessions)
         
-        level_key, level_data = get_performance_level(avg_score)
+        # Seviye breakdown
+        seviye_counts = {}
+        baslik_counts = {}
         
-        # Product-Branch breakdown
-        product_scores = {}
-        branch_scores = {}
-        
-        for assessment in assessments:
-            product = assessment.get("selected_product")
-            branch = assessment.get("selected_branch")
-            score = assessment.get("performance_score", 0)
+        for session in sessions:
+            seviye = session.get("seviye", "")
+            baslik = session.get("baslik", "")
             
-            if product:
-                if product not in product_scores:
-                    product_scores[product] = []
-                product_scores[product].append(score)
-            
-            if branch:
-                if branch not in branch_scores:
-                    branch_scores[branch] = []
-                branch_scores[branch].append(score)
+            if seviye:
+                seviye_counts[seviye] = seviye_counts.get(seviye, 0) + 1
+            if baslik:
+                baslik_counts[baslik] = baslik_counts.get(baslik, 0) + 1
         
-        product_averages = {product: sum(scores)/len(scores) for product, scores in product_scores.items()}
-        branch_averages = {branch: sum(scores)/len(scores) for branch, scores in branch_scores.items()}
+        # Calculate overall performance
+        gelismeli_count = seviye_counts.get("Gelişmeli", 0)
+        basarili_count = seviye_counts.get("Başarılı", 0) 
+        ustun_count = seviye_counts.get("Üstün Başarılı", 0)
+        
+        total_weighted = (gelismeli_count * 50) + (basarili_count * 75) + (ustun_count * 95)
+        overall_score = (total_weighted / total_sessions) if total_sessions > 0 else 0
         
         return {
             "user": user_clean,
-            "overall_score": round(avg_score, 1),
-            "performance_level": level_data,
-            "total_assessments": len(assessments),
-            "product_scores": product_averages,
-            "branch_scores": branch_averages,
-            "recent_assessments": assessments[-5:] if assessments else [],
-            "available_products": list(PRODUCTS.keys()),
-            "available_branches": list(BRANCHES.keys())
+            "total_sessions": total_sessions,
+            "overall_score": round(overall_score, 1),
+            "seviye_breakdown": seviye_counts,
+            "baslik_breakdown": baslik_counts,
+            "recent_sessions": sessions[-5:] if sessions else [],
+            "available_basliklar": list(ROTA_BASLIKLAR.keys()),
+            "available_seviyeler": list(DEGERLENDIRME_SEVIYELERI.keys())
         }
         
     except Exception as e:
-        logging.error(f"Dashboard error for user {user_id}: {str(e)}")
+        logging.error(f"Dashboard error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Dashboard hatası: {str(e)}")
 
 # Include router
@@ -581,9 +446,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
