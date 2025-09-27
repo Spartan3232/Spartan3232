@@ -620,6 +620,52 @@ async def update_goal_progress(goal_id: str, current_value: float):
     )
     return {"message": "Hedef güncellendi", "status": status}
 
+@api_router.post("/ai/suggest-goal")
+async def suggest_goal_with_rota(user_id: str, focus_area: str = "", experience_level: str = ""):
+    try:
+        user = await db.users.find_one({"id": user_id})
+        if not user:
+            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+        
+        chat = await get_ai_chat("gpt-5", f"goal_suggestion_{user_id}")
+        
+        prompt = f"""ROTA metodolojisine uygun bir gelişim hedefi öner.
+
+Kullanıcı Bilgileri:
+- İsim: {user['name']}
+- Rol: {'Bölge Müdürü' if user['role'] == 'bolge_muduru' else 'Tıbbi Satış Temsilcisi'}
+- Odaklanmak istediği alan: {focus_area or 'Genel gelişim'}
+- Deneyim seviyesi: {experience_level or 'Orta seviye'}
+
+Lütfen şu formatta bir JSON cevap ver:
+{{
+    "title": "Hedef başlığı",
+    "description": "ROTA metodolojisine uygun detaylı açıklama",
+    "category": "ETKİNLİK veya VERİMLİLİK",
+    "subcategory": "Alt alan (örn: Ürün Bilgisi, Etkili giriş)",
+    "target_value": 100,
+    "suggested_deadline": "2024-12-31",
+    "action_steps": [
+        "NASIL 1: İlk adım açıklaması",
+        "NASIL 2: İkinci adım açıklaması", 
+        "NASIL 3: Üçüncü adım açıklaması"
+    ],
+    "success_metrics": ["Ölçüm kriteri 1", "Ölçüm kriteri 2"],
+    "tips": ["İpucu 1", "İpucu 2", "İpucu 3"]
+}}"""
+        
+        user_message = UserMessage(text=prompt)
+        response = await chat.send_message(user_message)
+        
+        try:
+            suggestion = json.loads(response)
+            return {"suggestion": suggestion}
+        except json.JSONDecodeError:
+            return {"suggestion": {"title": "AI Önerisi", "description": response}}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Hedef önerisi hatası: {str(e)}")
+
 @api_router.get("/dashboard/{user_id}")
 async def get_dashboard_data(user_id: str):
     try:
