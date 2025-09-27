@@ -620,6 +620,11 @@ async def update_goal_progress(goal_id: str, current_value: float):
     )
     return {"message": "Hedef güncellendi", "status": status}
 
+class AIGoalRequest(BaseModel):
+    user_id: str
+    focus_area: str = ""
+    experience_level: str = "orta"
+
 @api_router.post("/ai/suggest-goal")
 async def suggest_goal_with_rota(user_id: str, focus_area: str = "", experience_level: str = ""):
     try:
