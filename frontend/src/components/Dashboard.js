@@ -6,7 +6,8 @@ import StatCard from './StatCard';
 import GoalCard from './GoalCard';
 import AIRecommendationCard from './AIRecommendationCard';
 import GoalCreationModal from './GoalCreationModal';
-import { MessageCircle, Target, TrendingUp, Users, Brain, Zap, Plus, BookOpen } from 'lucide-react';
+import VerimlilikoAssessment from './VerimlilikoAssessment';
+import { MessageCircle, Target, TrendingUp, Users, Brain, Zap, Plus, BookOpen, CheckSquare, BarChart3 } from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useContext(UserContext);
@@ -14,6 +15,7 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [showGoalModal, setShowGoalModal] = useState(false);
+  const [showAssessmentModal, setShowAssessmentModal] = useState(false);
 
   useEffect(() => {
     if (user?.id) {
@@ -35,6 +37,10 @@ const Dashboard = () => {
   };
 
   const handleGoalCreated = () => {
+    fetchDashboardData(); // Refresh dashboard data
+  };
+
+  const handleAssessmentCompleted = () => {
     fetchDashboardData(); // Refresh dashboard data
   };
 
@@ -98,7 +104,7 @@ const Dashboard = () => {
                   {getGreeting()}, {user?.name}!
                 </h1>
                 <p className="text-blue-100 mt-1">
-                  {getUserTitle()} • ROTA Koçluk Platformu
+                  {getUserTitle()} • ROTA VERİMLİLİK Koçluk Platformu
                 </p>
               </div>
               <div className="flex items-center space-x-4">
@@ -143,42 +149,49 @@ const Dashboard = () => {
               changeType="positive"
             />
             <StatCard
-              title="Koçluk Seansları"
-              value={dashboardData?.stats?.total_sessions || 0}
-              icon={MessageCircle}
+              title="VERİMLİLİK Değerlendirme"
+              value={dashboardData?.stats?.total_assessments || 0}
+              icon={BarChart3}
               color="orange"
-              change="+15%"
+              change="+25%"
               changeType="positive"
             />
           </div>
 
-          {/* ROTA Framework Overview */}
-          {dashboardData?.stats?.category_breakdown && Object.keys(dashboardData.stats.category_breakdown).length > 0 && (
+          {/* VERİMLİLİK Assessment Overview */}
+          {dashboardData?.stats?.verimlilik_topics && Object.keys(dashboardData.stats.verimlilik_topics).length > 0 && (
             <div className="bg-white rounded-2xl shadow-strong p-6 mb-8 animate-fade-in">
               <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center space-x-2">
-                <BookOpen className="w-6 h-6 text-blue-600" />
-                <span>ROTA Gelişim Alanları</span>
+                <TrendingUp className="w-6 h-6 text-orange-600" />
+                <span>VERİMLİLİK Koçluk Alanları</span>
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {Object.entries(dashboardData.stats.category_breakdown).map(([category, stats]) => (
-                  <div key={category} className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-gray-900">{category}</h3>
-                      <div className="text-sm text-gray-600">
-                        {stats.completed}/{stats.total} tamamlandı
+              <p className="text-gray-600 mb-4">En çok değerlendirilen Dr / Ecz Tanıtım Uygulamaları:</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(dashboardData.stats.verimlilik_topics)
+                  .sort(([,a], [,b]) => b - a)
+                  .slice(0, 6)
+                  .map(([topic, count]) => (
+                    <div key={topic} className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200">
+                      <h3 className="font-semibold text-gray-900 text-sm mb-2">{topic}</h3>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-orange-600">{count} değerlendirme</span>
+                        <div className="bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                          {count}
+                        </div>
                       </div>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-gradient-to-r from-blue-500 to-emerald-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}% tamamlanma oranı
-                    </p>
-                  </div>
                 ))}
+              </div>
+              
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => setShowAssessmentModal(true)}
+                  className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 btn-hover-lift flex items-center space-x-2 mx-auto"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  <span>Yeni VERİMLİLİK Değerlendirmesi</span>
+                </button>
               </div>
             </div>
           )}
@@ -237,18 +250,46 @@ const Dashboard = () => {
                     <span>AI Koç ile Sohbet</span>
                   </button>
                   <button 
+                    onClick={() => setShowAssessmentModal(true)}
+                    className="w-full flex items-center space-x-3 p-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 btn-hover-lift"
+                  >
+                    <BarChart3 className="w-5 h-5" />
+                    <span>VERİMLİLİK Değerlendir</span>
+                  </button>
+                  <button 
                     onClick={() => setShowGoalModal(true)}
                     className="w-full flex items-center space-x-3 p-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:from-green-600 hover:to-teal-600 transition-all duration-300 btn-hover-lift"
                   >
                     <Target className="w-5 h-5" />
                     <span>ROTA Hedef Belirle</span>
                   </button>
-                  <button className="w-full flex items-center space-x-3 p-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 btn-hover-lift">
-                    <Users className="w-5 h-5" />
-                    <span>Koçluk Seansları</span>
-                  </button>
                 </div>
               </div>
+
+              {/* Recent Assessments */}
+              {dashboardData?.recent_assessments && dashboardData.recent_assessments.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-strong p-6 animate-fade-in">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">Son Değerlendirmeler</h3>
+                  <div className="space-y-3">
+                    {dashboardData.recent_assessments.slice(0, 3).map((assessment, index) => (
+                      <div key={assessment.id || index} className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {new Date(assessment.assessment_date).toLocaleDateString('tr-TR')}
+                          </span>
+                          <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                            {assessment.selected_topics?.length || 0} konu
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          {assessment.selected_topics?.slice(0, 2).join(', ') || 'Değerlendirme tamamlandı'}
+                          {assessment.selected_topics?.length > 2 && ` +${assessment.selected_topics.length - 2} daha`}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* AI Model Status */}
               <div className="bg-white rounded-2xl shadow-strong p-6 animate-fade-in">
@@ -282,11 +323,17 @@ const Dashboard = () => {
         </div>
       </main>
 
-      {/* Goal Creation Modal */}
+      {/* Modals */}
       <GoalCreationModal
         isOpen={showGoalModal}
         onClose={() => setShowGoalModal(false)}
         onGoalCreated={handleGoalCreated}
+      />
+
+      <VerimlilikoAssessment
+        isOpen={showAssessmentModal}
+        onClose={() => setShowAssessmentModal(false)}
+        onAssessmentCompleted={handleAssessmentCompleted}
       />
     </div>
   );

@@ -23,69 +23,208 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 # Create the main app without a prefix
-app = FastAPI(title="İlaç Satış Koçluk Uygulaması API")
+app = FastAPI(title="ROTA İlaç Satış Koçluk Uygulaması API")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-# ROTA Coaching Framework Integration
-ROTA_FRAMEWORK = {
-    "ETKİNLİK": {
-        "Ürün Bilgisi": [
-            "Ürünün tüm endikasyon, yan etki gibi etki mekanizmasının eğitim modüllerinden çalışılması",
-            "Bölgede medikal eğitimi iyi olan bir TTS den destek alınması", 
-            "Tüm bilgiler ürün, medikal ve rekabet bilgileri konsolide edilir ve bölge toplantısında paylaşılır"
-        ],
-        "Medikal Bilgi": [
-            "Sorumlu olunan portföye yönelik medikal bilginin tamamının öğrenilmesi",
-            "Ekipte medikal eğitimi iyi olan bir TTS ile çalışması sağlanır",
-            "Farklı uzmanlık ve dr profillerine göre role playler yapılarak bilgilerin pekişitirilmesi"
-        ],
-        "Rekabet Bilgisi": [
-            "Mevcut ürünlerin majör rakiplerinin bilinmesi, brick bazında pazar payı belirlenmesi",
-            "Rakip bilgilerinin ve broşürlerinin toplanması, medikal içeriklerinin kıyaslanması",
-            "Rekabetin stratejilerinin bilinmesi ve önlemler alınması"
-        ],
-        "Bölge/Pazar Bilgisi": [
-            "Bölgenin üretim/tüketim odağının belirlenmesi ve çalışma prensipleri",
-            "SWOT analizini doğru yapabilmesi ve aksiyon oluşturma",
-            "IQVIA datasını analiz etme ve rapor oluşturma"
-        ],
-        "Hedefleme/Segmentasyon": [
-            "Tüm müşterilerin havuzunun excel halinde alınması ve puanlanması",
-            "Potansiyel sıralamasına göre doktor liste oluşturulması",
-            "Frekans-Plan-Ziyaret oranlarında realizasyon sağlanması"
-        ]
-    },
+# Comprehensive ROTA VERİMLİLİK Framework
+ROTA_VERIMLILIK_FRAMEWORK = {
     "VERİMLİLİK": {
-        "Etkili giriş": [
-            "İlgi oluşturacak 15 farklı giriş cümlesinin hazırlanması",
-            "Her tanıtım sonrası ilgi durumunun değerlendirilmesi",
-            "Role play çalışmaları ile gelişim sağlanması"
-        ],
-        "Etkili soru sorma": [
-            "Açık ve kapalı uçlu sorular hazırlanması",
-            "Müşteri ihtiyaçlarına yönelik bilgilendirici sorular",
-            "Role play örneklerinin uygulanması"
-        ],
-        "Aktif dinleme": [
-            "Müşteri söylediklerini farklı kelimelerle tekrar etme",
-            "Düşüncelerin tekrar anlatılması ile doğrulama",
-            "Aktif dinleme teknikleri geliştirme"
-        ],
-        "İhtiyaç ortaya çıkarma": [
-            "Ürün tercih etmeme nedenlerinin tespit edilmesi",
-            "Sebep analizinin yapılması ve taktik belirlenmesi",
-            "Yanlış anlama, bilgi eksikliği veya önyargıların giderilmesi"
-        ],
-        "Kapanış teknikleri": [
-            "Kapanış ve reçete isteme cümlelerinin hazırlanması",
-            "Role play yöntemi ile test edilmesi",
-            "Reçete sonuçlarının takip edilmesi"
-        ]
+        "Etkili giriş (İlgi oluşturma)": {
+            "nasil_1": "Ürün/branş-spesifik 15 farklı giriş cümlesi hazırlayın (örneğin, 'Doktor Bey, son klinik çalışmalarda X ilacının kardiyolojideki etkisi hakkında ne düşünüyorsunuz?')",
+            "nasil_2": "Sahada uygulayın ve rol yapma ile test edin. Her tanıtım sonrasında ilgi durumunu birlikte değerlendirip arşivleyin",
+            "nasil_3": "İstenilen duruma ulaşıldığında aksiyonu birlikte tamamlayın. Role play çalışmaları ile pratik yapın",
+            "olcum_kriterleri": "Ziyaret başlangıcında doktor/eczacı ilgisi (jest/mimik, devam etme isteği), Ziyaret başarı oranı (%80+ ilgi sağlama)",
+            "rota_seviyeleri": {
+                "ustun": "Rol model giriş, spontan ilgi yaratma",
+                "basarili": "Planlı girişlerle %70+ başarı",
+                "gelismeli": "Dikkat dağılması, %50 altı başarı"
+            },
+            "beklenen_sonuc": "Ziyaret süresi uzar, reçete dönüşümü %15-20 artar, mümessil güven kazanır"
+        },
+        "Etkili soru sorma becerisi": {
+            "nasil_1": "Ürün-spesifik 5 açık/5 kapalı soru hazırlayın (örneğin, 'Bu ilacın yan etkilerini nasıl yönetiyorsunuz?')",
+            "nasil_2": "Ziyaretlerde itiraz/ihtiyaç için kullanın, rol yapma ile pratik edin",
+            "nasil_3": "AI ile soru seti kişiselleştirin, her soru sorma örneğini arşivleyip değerlendirin",
+            "olcum_kriterleri": "Soruların doktor tepkisi (cevap kalitesi, diyalog akışı), Ziyaret başına soru sayısı (min 3), dönüşüm oranı (%50+ ihtiyaç tespiti)",
+            "rota_seviyeleri": {
+                "ustun": "Yeni fırsat yaratma, derin ihtiyaç tespiti",
+                "basarili": "İhtiyaçları açığa çıkarma, %60+ tepki",
+                "gelismeli": "Yüzeysel sorular, %40 altı tepki"
+            },
+            "beklenen_sonuc": "İhtiyaçlar netleşir, satış kapanışı %25 artar, diyalog derinleşir"
+        },
+        "Aktif dinleme": {
+            "nasil_1": "Dinlediğinizi farklı kelimelerle tekrar edin (örneğin, 'Yani, yan etki endişeniz bu mu?')",
+            "nasil_2": "4 eczacı/doktor görüşmesini kaydedip değerlendirin",
+            "nasil_3": "YouTube videoları izleyin ve ekip sunumu yapın, empati kurma pratiği",
+            "olcum_kriterleri": "Tekrarlama doğruluğu, doktor memnuniyeti (jestler), Ziyaret sonrası not kalitesi (min %90 doğru anlama)",
+            "rota_seviyeleri": {
+                "ustun": "Empati yaratma, derin anlayış",
+                "basarili": "Doğru anlama, %80+ memnuniyet",
+                "gelismeli": "Kesintiler, %60 altı doğruluk"
+            },
+            "beklenen_sonuc": "İlişkiler güçlenir, itirazlar %30 azalır, güven artar"
+        },
+        "İhtiyaçların ortaya çıkarılması ve giderilmesi": {
+            "nasil_1": "5 doktorun tercih etmeme nedenlerini tespit edin, taktik belirleyin",
+            "nasil_2": "Yanlış anlama/önyargı kaynaklarını değerlendirip arşivleyin",
+            "nasil_3": "Sahada ROTA ile test edin, karşılıklı mütabakat sağlayın",
+            "olcum_kriterleri": "İhtiyaç tespiti doğruluğu (doktor onayı), Çözüm oranı (%70+ giderim)",
+            "rota_seviyeleri": {
+                "ustun": "Yeni reçete yaratma, proaktif çözüm",
+                "basarili": "İhtiyaç-çözüm uyumu, %60+ başarı",
+                "gelismeli": "Yüzeysel tespit, %40 altı giderim"
+            },
+            "beklenen_sonuc": "Satış dönüşümü %20 artar, müşteri sadakati yükselir"
+        },
+        "İtirazları anlama ve karşılama": {
+            "nasil_1": "5 doktorun itiraz nedenlerini soruyla ortaya çıkarın",
+            "nasil_2": "Ürün avantajlarını karşılaştırmalı yanıt verin",
+            "nasil_3": "Rol yapma ile pratik edin, empatiyle yaklaşın",
+            "olcum_kriterleri": "Yanıt etkinliği (doktor ikna), İtiraz dönüşüm oranı (%60+)",
+            "rota_seviyeleri": {
+                "ustun": "Önleyici itiraz, çözüm odaklı",
+                "basarili": "Empatik yanıt, %50+ ikna",
+                "gelismeli": "Kaçınma, %30 altı dönüşüm"
+            },
+            "beklenen_sonuc": "Reçete kaybı %25 azalır, profesyonel güven artar"
+        },
+        "Özellik - Avantaj/Fayda": {
+            "nasil_1": "5 özellik-avantaj-fayda cümlesi hazırlayın",
+            "nasil_2": "Rol yapma ve doktor ziyaretiyle test edin",
+            "nasil_3": "Başarıları ekip ile paylaşın, sürekli geliştirin",
+            "olcum_kriterleri": "Fayda vurgusu (doktor tepkisi), Ziyaret dönüşümü (%50+)",
+            "rota_seviyeleri": {
+                "ustun": "Kişiselleştirme, branş uyarlaması",
+                "basarili": "Net FAB zinciri, %40+ onay",
+                "gelismeli": "Sadece özellik, %25 altı etki"
+            },
+            "beklenen_sonuc": "Ürün algısı iyileşir, satış %15 artar"
+        },
+        "Tanıtım malzemesinin etkin kullanımı": {
+            "nasil_1": "Malzeme akılda kalıcılığını 10 doktorla test edin",
+            "nasil_2": "3 uygulama gösterin, ROTA'da değerlendirin",
+            "nasil_3": "Kampanya entegrasyonu ekleyin, interaktif yapın",
+            "olcum_kriterleri": "Malzeme etkisi (hatırlama), Ziyaret sonrası anket (%70+ etki)",
+            "rota_seviyeleri": {
+                "ustun": "Yaratıcı kullanım, kalıcı etki",
+                "basarili": "Etkili sunum, %60+ hatırlama",
+                "gelismeli": "Statik sunum, %40 altı etki"
+            },
+            "beklenen_sonuc": "Reçete hatırlatma %20 artar, marka sadakati yükselir"
+        },
+        "Olumlu davranışları destekleme": {
+            "nasil_1": "Haftalık olumlu ifade/jest/mimik excel'i tutun",
+            "nasil_2": "Farklılıkları değerlendirip arşivleyin",
+            "nasil_3": "Ekip üzerinde gözlemleyin, pozitif pekiştirme yapın",
+            "olcum_kriterleri": "Davranış tekrarı (teşekkür oranı), Aylık olumlu log (%50+ artış)",
+            "rota_seviyeleri": {
+                "ustun": "Motivasyon artışı, takım sinergisi",
+                "basarili": "Düzenli teşvik, %40+ artış",
+                "gelismeli": "Gözden kaçırma, %20 altı artış"
+            },
+            "beklenen_sonuc": "Ekip motivasyonu yükselir, performans %10 artar"
+        },
+        "Çoklu ürün çalışma becerisi": {
+            "nasil_1": "5 doktor için ürün geçişi planlayın, rol yapmayla test edin",
+            "nasil_2": "Ziyaretlerde uygulayın, portföy stratejisi geliştirin",
+            "nasil_3": "Sonuçları ROTA'da kontrol edin, sinerji yaratın",
+            "olcum_kriterleri": "Geçiş akıcılığı (doktor kabulü), Çoklu reçete oranı (%40+)",
+            "rota_seviyeleri": {
+                "ustun": "Sinerji yaratma, portföy optimizasyonu",
+                "basarili": "Akıcı geçiş, %30+ çoklu",
+                "gelismeli": "Karışıklık, %15 altı başarı"
+            },
+            "beklenen_sonuc": "Portföy satışları %15 artar, verimlilik yükselir"
+        },
+        "Kısa tanıtım becerisi": {
+            "nasil_1": "Potansiyel 10 doktor belirleyin, 1-3 dk içerik planlayın",
+            "nasil_2": "Rol yapma ve sahada test edin, zaman yönetimi",
+            "nasil_3": "Reçete dönüşümünü kontrol edin, hızlı ikna teknikleri",
+            "olcum_kriterleri": "Süre ve ikna (doktor tepkisi), Tanıtım süresi (min 3 dk başarı %70)",
+            "rota_seviyeleri": {
+                "ustun": "Hızlı ikna, ana fayda odağı",
+                "basarili": "Etkili özet, %50+ dönüşüm",
+                "gelismeli": "Uzatma, %30 altı etkinlik"
+            },
+            "beklenen_sonuc": "Zaman tasarrufu %20, reçete artışı %10"
+        },
+        "Kapanış teknikleri (Özetleme ve talepte bulunmak)": {
+            "nasil_1": "7+ doktor için kapanış cümlesi hazırlayın",
+            "nasil_2": "Rol yapma ve sahada test edin, doğrudan talep",
+            "nasil_3": "Reçete kontrolü yapın, gelişim döngüsü sürdürün",
+            "olcum_kriterleri": "Talep kabulü (reçete isteme), Kapanış başarı oranı (%60+)",
+            "rota_seviyeleri": {
+                "ustun": "Talep yaratma, özet + aksiyon",
+                "basarili": "Net kapanış, %45+ başarı",
+                "gelismeli": "Kaçınma, %25 altı dönüşüm"
+            },
+            "beklenen_sonuc": "Satış kapanışı %25 artar, hedef tutturma yükselir"
+        },
+        "Toplantı planlama ve sunum becerileri analizi / takibi": {
+            "nasil_1": "Toplantı amacı/lojistik planlayın, davet hatırlatın",
+            "nasil_2": "Sunum sonrası davranış değişikliğini raporlayın",
+            "nasil_3": "Değerlendirme yapın, ROI analizi ekleyin",
+            "olcum_kriterleri": "Katılım ve etki (davet oranı), Toplantı başarı (%80+ davranış değişikliği)",
+            "rota_seviyeleri": {
+                "ustun": "Etki analizi, uzun vadeli değişim",
+                "basarili": "İyi planlama, %60+ katılım",
+                "gelismeli": "Plan eksikliği, %40 altı etki"
+            },
+            "beklenen_sonuc": "Etkinlik etkisi %30 artar, profesyonel ağ genişler"
+        },
+        "Sosyal kabul düzeyi": {
+            "nasil_1": "Günlük talep excel'i tutun, ilişki kalitesini ölçün",
+            "nasil_2": "Oranlara göre sosyal stiller eğitimi alın",
+            "nasil_3": "Farklılıkları karşılaştırın, adaptasyon geliştirin",
+            "olcum_kriterleri": "Talep niteliği (pozitif etkileşim), Aylık talep artışı (%50+)",
+            "rota_seviyeleri": {
+                "ustun": "Sadakat yaratma, çeşitli stiller",
+                "basarili": "Yüksek kabul, %35+ artış",
+                "gelismeli": "Düşük oran, %15 altı gelişim"
+            },
+            "beklenen_sonuc": "İlişkiler güçlenir, referans ve tavsiye artar"
+        },
+        "Eczane özel etkinlik planlama, gerçekleştirme ve takip": {
+            "nasil_1": "Eczane verilerini (reçete kaynağı, depolar) excel'e toplayın",
+            "nasil_2": "Güncelle ve değişiklikleri belirtin, kampanya katkı ekleyin",
+            "nasil_3": "Etkinlik sonuçlarını takip edin, otomatikleştirin",
+            "olcum_kriterleri": "Etkinlik katılımı (vitrin etkisi), Etkinlik sonrası satış artışı (%20+)",
+            "rota_seviyeleri": {
+                "ustun": "Sürekli güncelleme, yüksek ROI",
+                "basarili": "Düzenli takip, %15+ artış",
+                "gelismeli": "Takip eksikliği, %5 altı etki"
+            },
+            "beklenen_sonuc": "Eczane satışları %15 artar, stok optimizasyonu sağlanır"
+        },
+        "Reçete analizi ve stok takibi": {
+            "nasil_1": "Eczane stoklarını excel'e işleyin, devir hızı hesaplayın",
+            "nasil_2": "Strateji belirleyin, trend analizi yapın",
+            "nasil_3": "ROTA ile kontrol edin, öngörü geliştirin",
+            "olcum_kriterleri": "Analiz doğruluğu (stok devri), Stok dönüşüm oranı (%50+)",
+            "rota_seviyeleri": {
+                "ustun": "Strateji uygulama, trend öngörüsü",
+                "basarili": "Doğru analiz, %35+ devir",
+                "gelismeli": "Veri hatası, %20 altı verimlilik"
+            },
+            "beklenen_sonuc": "Stok kayıpları azalır, satış %10 artar"
+        },
+        "Tablet ile tanıtım": {
+            "nasil_1": "İçeriğe 5 sn'de ulaşın, soru/itirazlara hazır olun",
+            "nasil_2": "Rol yapma ve sahada test edin, interaktif yapın",
+            "nasil_3": "Farklılıkları kaydedin, dijital sinerji yaratın",
+            "olcum_kriterleri": "Kullanım hızı (etkileşim), Tanıtım süresi (%80+ verimlilik)",
+            "rota_seviyeleri": {
+                "ustun": "Dijital sinerji, dinamik etkileşim",
+                "basarili": "Hızlı kullanım, %60+ verimlilik",
+                "gelismeli": "Gecikme, %40 altı etkinlik"
+            },
+            "beklenen_sonuc": "Dijital etki %20 artar, ziyaret verimliliği yükselir"
+        }
     }
 }
-
 
 # Define Models
 class User(BaseModel):
@@ -113,12 +252,29 @@ class ChatRequest(BaseModel):
     message: str
     model: str = "gpt-5"
 
+class CoachingAssessment(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    coach_id: str
+    selected_topics: List[str]
+    assessment_results: Dict[str, Any]
+    ai_feedback: Dict[str, Any]
+    action_plan: List[str]
+    assessment_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    status: str = "completed"
+
+class CoachingAssessmentCreate(BaseModel):
+    user_id: str
+    coach_id: str
+    selected_topics: List[str]
+    performance_levels: Dict[str, str]  # topic -> "ustun"/"basarili"/"gelismeli"
+
 class Goal(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     title: str
     description: str
-    category: str  # ROTA category like "Ürün Bilgisi", "Etkili giriş"
+    category: str  # ROTA category like "ETKİNLİK", "VERİMLİLİK"
     subcategory: str  # Specific area
     target_value: float
     current_value: float = 0
@@ -137,50 +293,51 @@ class GoalCreate(BaseModel):
     deadline: str
     action_steps: List[str] = []
 
-class CoachingSession(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    coach_id: str  # Bölge müdürü
-    coachee_id: str  # Mümessil
-    goal_id: Optional[str] = None
-    session_type: str  # "hedef_belirleme", "rota_calisma", "role_play"
-    notes: str
-    feedback: str
-    action_items: List[str] = []
-    next_session_date: Optional[datetime] = None
-    status: str = "completed"
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class CoachingSessionCreate(BaseModel):
-    coach_id: str
-    coachee_id: str
-    goal_id: Optional[str] = None
-    session_type: str
-    notes: str
-    feedback: str
-    action_items: List[str] = []
-    next_session_date: Optional[str] = None
-
 # AI Chat Configuration
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 
 async def get_ai_chat(model: str, session_id: str, coaching_context: str = ""):
-    """Initialize AI chat with ROTA coaching context"""
+    """Initialize AI chat with enhanced ROTA coaching context"""
     system_message = f"""Sen uzman bir ilaç satış koçusun ve ROTA (Nasıllar Rehberi – Hedef Bazlı Koçluk) metodolojisini kullanıyorsun.
 
-ROTA Framework:
-{json.dumps(ROTA_FRAMEWORK, ensure_ascii=False, indent=2)}
+ROTA VERİMLİLİK Framework:
+{json.dumps(ROTA_VERIMLILIK_FRAMEWORK, ensure_ascii=False, indent=2)}
 
 {coaching_context}
 
-Görevlerin:
-- ROTA metodolojisine uygun koçluk yapmak
-- Spesifik, ölçülebilir hedefler önermek
-- ETKİNLİK ve VERİMLİLİK alanlarında rehberlik etmek
-- Her gelişim alanı için NASIL 1, NASIL 2, NASIL 3 adımları önermek
-- Türkçe ilaç satış terminolojisi kullanmak
-- Pratik role play örnekleri vermek
+KOÇLUK GERİ BİLDİRİM FORMATIN:
+Her koçluk değerlendirmesi için şu yapıyı kullan:
 
-Her zaman Türkçe cevap ver, profesyonel ve destekleyici bir ton kullan."""
+**KONU BAŞLIĞI**: [Seçilen başlık]
+**NASIL YAPILACAK**:
+- NASIL 1: [İlk adım detayları]
+- NASIL 2: [İkinci adım detayları]  
+- NASIL 3: [Üçüncü adım detayları]
+
+**NE İLE ÖLÇÜLECEK/GÖZLEMLENECEKe**:
+- Gözlem kriterleri: [Observable behaviors]
+- Ölçüm metrikleri: [Quantifiable metrics]
+- ROTA Seviyeleri: Üstün/Başarılı/Gelişmeli
+
+**SONUÇ NE OLACAK**:
+- Kısa vadeli etkiler
+- Uzun vadeli ROI
+
+**KOÇLUK GERİ BİLDİRİMİ**:
+"[Kişiselleştirilmiş geri bildirim]" ([Seviye] seviye)
+
+**GELİŞİM ALANI**:
+- Aksiyon 1: [Spesifik, ölçülebilir]
+- Aksiyon 2: [Maksimum 2 aksiyon]
+
+Görevlerin:
+- ROTA VERİMLİLİK metodolojisine uygun koçluk yapmak
+- Seçilen konularda bu format ile geri bildirim üretmek
+- Seviyeye göre (Üstün/Başarılı/Gelişmeli) kişiselleştirmek
+- Maksimum 2 aksiyon adımı önermek
+- İlaç sektörüne özel örnekler vermek
+
+Her zaman Türkçe cevap ver ve profesyonel koçluk tonu kullan."""
     
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
@@ -208,7 +365,7 @@ def prepare_for_mongo(data):
 def parse_from_mongo(item):
     if isinstance(item, dict):
         for key, value in item.items():
-            if key.endswith('_at') or key == 'deadline' or key == 'next_session_date':
+            if key.endswith('_at') or key == 'deadline' or key == 'assessment_date':
                 if isinstance(value, str):
                     try:
                         item[key] = datetime.fromisoformat(value)
@@ -219,7 +376,7 @@ def parse_from_mongo(item):
 # Routes
 @api_router.get("/")
 async def root():
-    return {"message": "ROTA İlaç Satış Koçluk Uygulaması API v2.0"}
+    return {"message": "ROTA VERİMLİLİK İlaç Satış Koçluk Uygulaması API v3.0"}
 
 @api_router.post("/users", response_model=User)
 async def create_user(user_data: UserCreate):
@@ -249,8 +406,9 @@ async def chat_with_ai(chat_request: ChatRequest):
         if not user:
             raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
         
-        # Get user's recent goals for context
+        # Get user's recent goals and assessments for context
         goals = await db.goals.find({"user_id": chat_request.user_id}).sort("created_at", -1).limit(3).to_list(3)
+        assessments = await db.coaching_assessments.find({"user_id": chat_request.user_id}).sort("assessment_date", -1).limit(2).to_list(2)
         
         coaching_context = f"""
 Kullanıcı Profili:
@@ -259,6 +417,9 @@ Kullanıcı Profili:
 
 Aktif Hedefleri:
 {chr(10).join([f"- {goal.get('title', '')}: {goal.get('description', '')}" for goal in goals]) if goals else "Henüz hedef belirlenmemiş"}
+
+Son Koçluk Değerlendirmeleri:
+{chr(10).join([f"- {', '.join(assessment.get('selected_topics', []))}" for assessment in assessments]) if assessments else "Henüz koçluk değerlendirmesi yapılmamış"}
 """
         
         # Get AI chat instance with coaching context
@@ -297,6 +458,103 @@ async def get_chat_history(user_id: str, limit: int = 50):
     
     return [ChatMessage(**parse_from_mongo(msg)) for msg in messages]
 
+@api_router.get("/rota/verimlilik")
+async def get_verimlilik_framework():
+    """Get the complete ROTA VERİMLİLİK framework"""
+    return {"framework": ROTA_VERIMLILIK_FRAMEWORK}
+
+@api_router.get("/rota/verimlilik/topics")
+async def get_verimlilik_topics():
+    """Get all VERİMLİLİK topic titles for multi-select"""
+    topics = list(ROTA_VERIMLILIK_FRAMEWORK["VERİMLİLİK"].keys())
+    return {"topics": topics}
+
+@api_router.post("/coaching/assessment", response_model=CoachingAssessment)
+async def create_coaching_assessment(assessment_data: CoachingAssessmentCreate):
+    try:
+        # Generate AI feedback for selected topics
+        user = await db.users.find_one({"id": assessment_data.user_id})
+        coach = await db.users.find_one({"id": assessment_data.coach_id})
+        
+        if not user or not coach:
+            raise HTTPException(status_code=404, detail="Kullanıcı veya koç bulunamadı")
+        
+        # Prepare coaching context
+        coaching_context = f"""
+Koçluk Değerlendirme Bağlamı:
+- Koçlanan: {user['name']} ({'Bölge Müdürü' if user['role'] == 'bolge_muduru' else 'Tıbbi Satış Temsilcisi'})
+- Koç: {coach['name']} ({'Bölge Müdürü' if coach['role'] == 'bolge_muduru' else 'Tıbbi Satış Temsilcisi'})
+- Seçilen Konular: {', '.join(assessment_data.selected_topics)}
+- Performans Seviyeleri: {assessment_data.performance_levels}
+
+Lütfen seçilen her konu için ROTA VERİMLİLİK formatında koçluk geri bildirimi üret.
+"""
+        
+        # Get AI assessment for each selected topic
+        chat = await get_ai_chat("gpt-5", f"assessment_{assessment_data.user_id}_{datetime.now().timestamp()}", coaching_context)
+        
+        prompt = f"""
+Seçilen VERİMLİLİK konuları için koçluk değerlendirmesi yap:
+
+Konular: {', '.join(assessment_data.selected_topics)}
+Performans Seviyeleri: {json.dumps(assessment_data.performance_levels, ensure_ascii=False)}
+
+Her konu için:
+1. ROTA formatında nasıl yapılacak adımları
+2. Ölçüm kriterleri  
+3. Beklenen sonuçlar
+4. Seviyeye göre kişiselleştirilmiş geri bildirim
+5. Maksimum 2 aksiyon adımı
+
+JSON formatında döndür:
+{{
+    "topic_feedbacks": {{
+        "konu_adı": {{
+            "nasil_yapilacak": ["adım1", "adım2", "adım3"],
+            "olcum_kriterleri": "kriterler",
+            "beklenen_sonuc": "sonuçlar", 
+            "geri_bildirim": "kişiselleştirilmiş feedback",
+            "gelisim_alani": ["aksiyon1", "aksiyon2"]
+        }}
+    }},
+    "genel_aksiyon_plani": ["öncelik1", "öncelik2"]
+}}
+"""
+        
+        user_message = UserMessage(text=prompt)
+        ai_response = await chat.send_message(user_message)
+        
+        try:
+            ai_feedback = json.loads(ai_response)
+        except json.JSONDecodeError:
+            ai_feedback = {"raw_response": ai_response}
+        
+        # Create assessment
+        assessment = CoachingAssessment(
+            user_id=assessment_data.user_id,
+            coach_id=assessment_data.coach_id,
+            selected_topics=assessment_data.selected_topics,
+            assessment_results=assessment_data.performance_levels,
+            ai_feedback=ai_feedback,
+            action_plan=ai_feedback.get("genel_aksiyon_plani", [])
+        )
+        
+        assessment_doc = prepare_for_mongo(assessment.dict())
+        await db.coaching_assessments.insert_one(assessment_doc)
+        
+        return assessment
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Koçluk değerlendirmesi hatası: {str(e)}")
+
+@api_router.get("/coaching/assessments/{user_id}", response_model=List[CoachingAssessment])
+async def get_user_assessments(user_id: str):
+    assessments = await db.coaching_assessments.find({
+        "$or": [{"user_id": user_id}, {"coach_id": user_id}]
+    }).sort("assessment_date", -1).to_list(100)
+    
+    return [CoachingAssessment(**parse_from_mongo(assessment)) for assessment in assessments]
+
 @api_router.post("/goals", response_model=Goal)
 async def create_goal(goal_data: GoalCreate):
     goal_dict = goal_data.dict()
@@ -327,82 +585,6 @@ async def update_goal_progress(goal_id: str, current_value: float):
     )
     return {"message": "Hedef güncellendi", "status": status}
 
-@api_router.get("/rota/framework")
-async def get_rota_framework():
-    return {"framework": ROTA_FRAMEWORK}
-
-@api_router.get("/rota/suggestions/{category}")
-async def get_rota_suggestions(category: str):
-    if category not in ROTA_FRAMEWORK:
-        raise HTTPException(status_code=404, detail="Kategori bulunamadı")
-    
-    return {"category": category, "areas": ROTA_FRAMEWORK[category]}
-
-@api_router.post("/coaching/sessions", response_model=CoachingSession)
-async def create_coaching_session(session_data: CoachingSessionCreate):
-    session_dict = session_data.dict()
-    if session_dict.get('next_session_date'):
-        session_dict['next_session_date'] = datetime.fromisoformat(session_dict['next_session_date'])
-    
-    session_obj = CoachingSession(**session_dict)
-    session_doc = prepare_for_mongo(session_obj.dict())
-    await db.coaching_sessions.insert_one(session_doc)
-    return session_obj
-
-@api_router.get("/coaching/sessions/{user_id}", response_model=List[CoachingSession])
-async def get_coaching_sessions(user_id: str):
-    sessions = await db.coaching_sessions.find({
-        "$or": [{"coach_id": user_id}, {"coachee_id": user_id}]
-    }).sort("created_at", -1).to_list(100)
-    
-    return [CoachingSession(**parse_from_mongo(session)) for session in sessions]
-
-@api_router.post("/ai/suggest-goal")
-async def suggest_goal_with_rota(user_id: str, focus_area: str = "", experience_level: str = ""):
-    try:
-        user = await db.users.find_one({"id": user_id})
-        if not user:
-            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
-        
-        chat = await get_ai_chat("gpt-5", f"goal_suggestion_{user_id}")
-        
-        prompt = f"""ROTA metodolojisine uygun bir gelişim hedefi öner.
-
-Kullanıcı Bilgileri:
-- İsim: {user['name']}
-- Rol: {'Bölge Müdürü' if user['role'] == 'bolge_muduru' else 'Tıbbi Satış Temsilcisi'}
-- Odaklanmak istediği alan: {focus_area or 'Genel gelişim'}
-- Deneyim seviyesi: {experience_level or 'Orta seviye'}
-
-Lütfen şu formatta bir JSON cevap ver:
-{{
-    "title": "Hedef başlığı",
-    "description": "ROTA metodolojisine uygun detaylı açıklama",
-    "category": "ETKİNLİK veya VERİMLİLİK",
-    "subcategory": "Alt alan (örn: Ürün Bilgisi, Etkili giriş)",
-    "target_value": 100,
-    "suggested_deadline": "2024-12-31",
-    "action_steps": [
-        "NASIL 1: İlk adım açıklaması",
-        "NASIL 2: İkinci adım açıklaması", 
-        "NASIL 3: Üçüncü adım açıklaması"
-    ],
-    "success_metrics": ["Ölçüm kriteri 1", "Ölçüm kriteri 2"],
-    "tips": ["İpucu 1", "İpucu 2", "İpucu 3"]
-}}"""
-        
-        user_message = UserMessage(text=prompt)
-        response = await chat.send_message(user_message)
-        
-        try:
-            suggestion = json.loads(response)
-            return {"suggestion": suggestion}
-        except json.JSONDecodeError:
-            return {"suggestion": {"title": "AI Önerisi", "description": response}}
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Hedef önerisi hatası: {str(e)}")
-
 @api_router.get("/dashboard/{user_id}")
 async def get_dashboard_data(user_id: str):
     try:
@@ -410,29 +592,27 @@ async def get_dashboard_data(user_id: str):
         if not user:
             raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
         
-        # Get user's goals
+        # Get user's goals and assessments
         goals = await db.goals.find({"user_id": user_id}).to_list(100)
-        goals_parsed = [Goal(**parse_from_mongo(goal)) for goal in goals]
-        
-        # Get coaching sessions
-        sessions = await db.coaching_sessions.find({
-            "$or": [{"coach_id": user_id}, {"coachee_id": user_id}]
+        assessments = await db.coaching_assessments.find({
+            "$or": [{"user_id": user_id}, {"coach_id": user_id}]
         }).to_list(100)
+        
+        goals_parsed = [Goal(**parse_from_mongo(goal)) for goal in goals]
         
         # Calculate statistics
         total_goals = len(goals_parsed)
         completed_goals = len([g for g in goals_parsed if g.status == "completed"])
         active_goals = len([g for g in goals_parsed if g.status == "active"])
+        total_assessments = len(assessments)
         
-        # ROTA category breakdown
-        category_stats = {}
-        for goal in goals_parsed:
-            cat = goal.category
-            if cat not in category_stats:
-                category_stats[cat] = {"total": 0, "completed": 0}
-            category_stats[cat]["total"] += 1
-            if goal.status == "completed":
-                category_stats[cat]["completed"] += 1
+        # VERİMLİLİK category breakdown from assessments
+        verimlilik_topics = {}
+        for assessment in assessments:
+            for topic in assessment.get("selected_topics", []):
+                if topic not in verimlilik_topics:
+                    verimlilik_topics[topic] = 0
+                verimlilik_topics[topic] += 1
         
         return {
             "user": User(**parse_from_mongo(user)),
@@ -441,11 +621,11 @@ async def get_dashboard_data(user_id: str):
                 "completed_goals": completed_goals,
                 "active_goals": active_goals,
                 "completion_rate": (completed_goals / total_goals * 100) if total_goals > 0 else 0,
-                "total_sessions": len(sessions),
-                "category_breakdown": category_stats
+                "total_assessments": total_assessments,
+                "verimlilik_topics": verimlilik_topics
             },
             "recent_goals": goals_parsed[:5],
-            "rota_areas": list(ROTA_FRAMEWORK.keys())
+            "recent_assessments": assessments[:3]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dashboard verisi alınamadı: {str(e)}")
