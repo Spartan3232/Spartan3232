@@ -428,32 +428,54 @@ async def get_dashboard_data(user_id: str):
         if not user:
             raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
         
-        # Get assessments and goals
-        assessments = await db.assessments.find({"user_id": user_id}).to_list(100)
-        goals = await db.goals.find({"user_id": user_id}).to_list(100)
+        # Clean user data
+        user_clean = parse_from_mongo(user)
         
-        # Calculate stats
+        # Get assessments and goals
+        assessments_raw = await db.assessments.find({"user_id": user_id}).to_list(100)
+        goals_raw = await db.goals.find({"user_id": user_id}).to_list(100)
+        
+        # Clean assessment data
+        assessments = []
+        for assessment in assessments_raw:
+            clean_assessment = parse_from_mongo(assessment)
+            assessments.append(clean_assessment)
+        
+        # Clean goal data  
+        goals = []
+        for goal in goals_raw:
+            clean_goal = parse_from_mongo(goal)
+            goals.append(clean_goal)
+        
+        # Calculate stats safely
         avg_score = 0
         if assessments:
-            avg_score = sum(a["performance_score"] for a in assessments) / len(assessments)
+            scores = [a.get("performance_score", 0) for a in assessments if "performance_score" in a]
+            if scores:
+                avg_score = sum(scores) / len(scores)
         
         level_key, level_data = get_performance_level(avg_score)
         
-        active_goals = len([g for g in goals if g["status"] == "active"])
-        completed_goals = len([g for g in goals if g["status"] == "completed"])
+        active_goals = len([g for g in goals if g.get("status") == "active"])
+        completed_goals = len([g for g in goals if g.get("status") == "completed"])
         
         # Area breakdown
         area_scores = {}
         for assessment in assessments:
-            area = assessment["coaching_area"]
-            if area not in area_scores:
-                area_scores[area] = []
-            area_scores[area].append(assessment["performance_score"])
+            area = assessment.get("coaching_area")
+            score = assessment.get("performance_score")
+            if area and score is not None:
+                if area not in area_scores:
+                    area_scores[area] = []
+                area_scores[area].append(score)
         
-        area_averages = {area: sum(scores)/len(scores) for area, scores in area_scores.items()}
+        area_averages = {}
+        for area, scores in area_scores.items():
+            if scores:
+                area_averages[area] = sum(scores) / len(scores)
         
         return {
-            "user": User(**parse_from_mongo(user)),
+            "user": user_clean,
             "overall_score": round(avg_score, 1),
             "performance_level": level_data,
             "total_assessments": len(assessments),
@@ -464,6 +486,7 @@ async def get_dashboard_data(user_id: str):
         }
         
     except Exception as e:
+        logging.error(f"Dashboard error for user {user_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Dashboard hatası: {str(e)}")
 
 # Include router
