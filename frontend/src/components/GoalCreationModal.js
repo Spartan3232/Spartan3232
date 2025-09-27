@@ -40,9 +40,11 @@ const GoalCreationModal = ({ isOpen, onClose, onGoalCreated }) => {
     
     setIsLoading(true);
     try {
-      const response = await axios.post(
-        `${API}/ai/suggest-goal?user_id=${user.id}&focus_area=${formData.category}&experience_level=orta`
-      );
+      const response = await axios.post(`${API}/ai/suggest-goal`, {
+        user_id: user.id,
+        focus_area: formData.category,
+        experience_level: 'orta'
+      });
       
       if (response.data.suggestion) {
         const suggestion = response.data.suggestion;
@@ -62,7 +64,7 @@ const GoalCreationModal = ({ isOpen, onClose, onGoalCreated }) => {
       }
     } catch (err) {
       console.error('AI suggestion error:', err);
-      setError('AI önerisi alınırken hata oluştu');
+      setError('AI önerisi alınırken hata oluştu: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsLoading(false);
     }
