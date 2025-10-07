@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import axios from "axios";
@@ -10,6 +10,7 @@ import { Toaster, toast } from "@/components/ui/sonner";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger, DrawerClose } from "@/components/ui/drawer";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -53,18 +54,69 @@ const Dashboard = () => {
   const [heatmap, setHeatmap] = useState(false);
   const [predMap, setPredMap] = useState({}); // uuid->prediction
 
+  // Value filter/sort controls persisted
+  const [valueFilterEnabled, setValueFilterEnabled] = useState(false);
+  const [valueThreshold, setValueThreshold] = useState(0.05);
+  const [sortBy, setSortBy] = useState("max"); // max | ev | time
+  const [outcomeScope, setOutcomeScope] = useState("all"); // all | home | draw | away
+
+  // Auto refresh controls
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [refreshMinutes, setRefreshMinutes] = useState(15);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [refreshCount, setRefreshCount] = useState(0);
+  const [pageVisible, setPageVisible] = useState(true);
+  const timerRef = useRef(null);
+  const failureRef = useRef(0);
+  const lastOddsMaxRef = useRef(null);
+
+  // Load persisted prefs
+  useEffect(() => {
+    try {
+      const vf = localStorage.getItem("pref_value_filter_enabled");
+      const vt = localStorage.getItem("pref_value_threshold");
+      const sb = localStorage.getItem("pref_sort_by");
+      const os = localStorage.getItem("pref_outcome_scope");
+      const ar = localStorage.getItem("pref_auto_refresh");
+      const rm = localStorage.getItem("pref_refresh_minutes");
+      if (vf !== null) setValueFilterEnabled(vf === "true");
+      if (vt !== null) setValueThreshold(parseFloat(vt));
+      if (sb) setSortBy(sb);
+      if (os) setOutcomeScope(os);
+      if (ar !== null) setAutoRefresh(ar === "true");
+      if (rm !== null) setRefreshMinutes(parseInt(rm, 10));
+    } catch {}
+  }, []);
+
+  // Persist prefs
+  useEffect(() => { try { localStorage.setItem("pref_value_filter_enabled", String(valueFilterEnabled)); } catch {} }, [valueFilterEnabled]);
+  useEffect(() => { try { localStorage.setItem("pref_value_threshold", String(valueThreshold)); } catch {} }, [valueThreshold]);
+  useEffect(() => { try { localStorage.setItem("pref_sort_by", String(sortBy)); } catch {} }, [sortBy]);
+  useEffect(() => { try { localStorage.setItem("pref_outcome_scope", String(outcomeScope)); } catch {} }, [outcomeScope]);
+  useEffect(() => { try { localStorage.setItem("pref_auto_refresh", String(autoRefresh)); } catch {} }, [autoRefresh]);
+  useEffect(() => { try { localStorage.setItem("pref_refresh_minutes", String(refreshMinutes)); } catch {} }, [refreshMinutes]);
+
   const yyyyMmDd = (d) => new Date(d).toISOString().slice(0, 10);
 
-  const loadFixtures = async () => {
+  const loadFixtures = async (opts = {}) => {
     try {
       const date = yyyyMmDd(dateValue);
-      let res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
-      if (!res.data || res.data.length === 0) {
+      const headers = {};
+      if (lastUpdated) headers["If-Modified-Since"] = lastUpdated;
+      let res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date }, headers });
+      if (!res.data || res.data.length === 0 || opts.forceLive) {
         await axios.get(`${API}/fixtures`, { params: { sport, league, date } });
-        res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
+        res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date }, headers });
       }
       setFixtures(res.data);
-      setPredMap({});
+      setPredMap((prev) => (opts.keepPreds ? prev : {}));
+      const maxOddsISO = getMaxOddsCollected(res.data);
+      if (maxOddsISO && maxOddsISO !== lastOddsMaxRef.current) {
+        if (lastOddsMaxRef.current) toast.success("Odds updated");
+        lastOddsMaxRef.current = maxOddsISO;
+      }
+      const nowISO = new Date().toISOString();
+      setLastUpdated(nowISO);
     } catch (e) {
       console.error("Failed to load fixtures", e);
     }
@@ -90,15 +142,14 @@ const Dashboard = () => {
       const t = toast.loading("Fetching odds...");
       await axios.post(`${API}/fixtures/odds/fetch`, null, { params: { sport, league, date } });
       toast.success("Odds updated", { id: t });
-      await loadFixtures();
+      await loadFixtures({ keepPreds: true });
     } catch (e) {
       toast.error("Failed to fetch odds");
     }
   };
 
   const ensurePredictionsForFixtures = async () => {
-    if (!heatmap) return;
-    const date = yyyyMmDd(dateValue);
+    if (!(heatmap || valueFilterEnabled)) return;
     const copy = { ...predMap };
     for (const fx of fixtures) {
       const key = fx.uuid || fx.id;
@@ -107,10 +158,9 @@ const Dashboard = () => {
         const body = fx.uuid ? { fixture_uuid: fx.uuid } : { sport, league, home: fx.home, away: fx.away };
         const res = await axios.post(`${API}/model/predict`, body);
         copy[key] = res.data;
-        // small delay to avoid hammering
         await new Promise(r => setTimeout(r, 120));
       } catch (e) {
-        // ignore per-fixture errors
+        // ignore
       }
     }
     setPredMap(copy);
@@ -118,7 +168,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     ensurePredictionsForFixtures();
-  }, [heatmap, fixtures]);
+  }, [heatmap, valueFilterEnabled, fixtures]);
 
   const handlePredict = async (fx) => {
     try {
@@ -175,20 +225,25 @@ const Dashboard = () => {
     return sport === 'football' ? modelStatus.metrics.acc : modelStatus.metrics.auc;
   }, [modelStatus, sport]);
 
-  const computeBestValue = (fx) => {
+  const sidesForScope = (scope) => (scope === 'all' ? ['home', ...(sport === 'football' ? ['draw'] : []), 'away'] : [scope]);
+
+  const ev = (p, odds) => (p == null || odds == null) ? null : (p * (Number(odds) - 1) - (1 - p));
+
+  const computeBestValue = (fx, scope = outcomeScope) => {
     const ml = fx?.odds?.markets?.moneyline;
     if (!ml) return null;
     const pred = predMap[fx.uuid || fx.id];
     if (!pred) return null;
-    const sides = ['home', ...(sport === 'football' ? ['draw'] : []), 'away'];
-    let best = { side: null, delta: -Infinity, odds: null, p: null };
+    const sides = sidesForScope(scope);
+    let best = { side: null, delta: -Infinity, odds: null, p: null, ev: null };
     for (const s of sides) {
       const p = s === 'home' ? pred.home_win_prob : s === 'draw' ? pred.draw_prob : pred.away_win_prob;
       const o = ml[s];
       const imp = implied(o);
       if (p == null || imp == null) continue;
       const delta = p - imp;
-      if (delta > best.delta) best = { side: s.toUpperCase(), delta, odds: o, p };
+      const ev1 = ev(p, o);
+      if (delta > best.delta) best = { side: s.toUpperCase(), delta, odds: o, p, ev: ev1 };
     }
     if (best.side === null) return null;
     return best;
@@ -203,8 +258,6 @@ const Dashboard = () => {
     if (best.delta > -0.05 && best.delta < 0.05) return "bg-amber-500/10";
     return "";
   };
-
-  const ev = (p, odds) => (p == null || odds == null) ? null : (p * (Number(odds) - 1) - (1 - p));
 
   const ValueTag = ({ fx }) => {
     const best = computeBestValue(fx);
@@ -308,7 +361,7 @@ const Dashboard = () => {
     return (
       <Drawer open={openOddsUuid === (fx.uuid || fx.id)} onOpenChange={(o)=> setOpenOddsUuid(o ? (fx.uuid || fx.id) : null)}>
         <DrawerTrigger asChild>
-          <Button size="sm" variant="outline" data-testid={`odds-drawer-btn-${fx.uuid || fx.id}`}>Odds</Button>
+          <Button size="sm" variant="outline" data-testid={`odds-drawer-btn-${(fx.uuid || fx.id)}`}>Odds</Button>
         </DrawerTrigger>
         <DrawerContent>
           <DrawerHeader>
@@ -368,6 +421,86 @@ const Dashboard = () => {
     );
   };
 
+  // Derive filtered/sorted fixtures
+  const enhancedFixtures = useMemo(() => {
+    const total = fixtures.length;
+    let rows = fixtures.map(fx => {
+      const best = computeBestValue(fx);
+      return { fx, best };
+    });
+
+    if (valueFilterEnabled) {
+      rows = rows.filter(r => {
+        if (!r.best) return false;
+        return r.best.delta >= valueThreshold;
+      });
+    }
+
+    if (sortBy === 'max') {
+      rows.sort((a,b) => (b.best?.delta ?? -Infinity) - (a.best?.delta ?? -Infinity));
+    } else if (sortBy === 'ev') {
+      rows.sort((a,b) => (b.best?.ev ?? -Infinity) - (a.best?.ev ?? -Infinity));
+    } else {
+      rows.sort((a,b) => new Date(a.fx.date_utc || a.fx.kickoff) - new Date(b.fx.date_utc || b.fx.kickoff));
+    }
+
+    return { total, rows };
+  }, [fixtures, valueFilterEnabled, valueThreshold, sortBy, predMap, outcomeScope]);
+
+  // Auto-refresh scheduler
+  useEffect(() => {
+    const onVis = () => setPageVisible(!document.hidden);
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  useEffect(() => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (!autoRefresh || training || !pageVisible) return;
+
+    const run = async () => {
+      try {
+        const date = yyyyMmDd(dateValue);
+        // fetch odds then db
+        await axios.post(`${API}/fixtures/odds/fetch`, null, { params: { sport, league, date } });
+        const headers = {};
+        if (lastUpdated) headers["If-Modified-Since"] = lastUpdated;
+        const res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } , headers});
+        const oldMax = lastOddsMaxRef.current;
+        const newMax = getMaxOddsCollected(res.data);
+        if (newMax && newMax !== oldMax) {
+          lastOddsMaxRef.current = newMax;
+          toast.success("Odds updated");
+        }
+        setFixtures(res.data);
+        setRefreshCount(c => c + 1);
+        setLastUpdated(new Date().toISOString());
+        failureRef.current = 0;
+      } catch (e) {
+        failureRef.current = Math.min(5, failureRef.current + 1);
+      }
+
+      const base = refreshMinutes * 60 * 1000;
+      const jitter = 1 + (Math.random() * 0.4 - 0.2); // ±20%
+      const backoff = Math.pow(2, failureRef.current);
+      const delay = Math.min(base * jitter * backoff, 60 * 60 * 1000); // cap at 60m
+      timerRef.current = setTimeout(run, delay);
+    };
+
+    // initial schedule
+    timerRef.current = setTimeout(run, 1000);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [autoRefresh, training, pageVisible, sport, league, dateValue, refreshMinutes]);
+
+  function getMaxOddsCollected(list) {
+    let maxISO = null;
+    for (const fx of list || []) {
+      const iso = fx?.odds?.collected_at;
+      if (iso && (!maxISO || iso > maxISO)) maxISO = iso;
+    }
+    return maxISO;
+  }
+
   return (
     <div className="min-h-screen bg-[#0b0d0e] text-white">
       <Toaster />
@@ -379,13 +512,61 @@ const Dashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           <Card className="lg:col-span-2 bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl">Fixtures</CardTitle>
-              <div className="flex gap-3 items-center">
-                <div className="flex items-center gap-2" data-testid="value-heatmap-toggle">
-                  <Switch checked={heatmap} onCheckedChange={setHeatmap} />
-                  <span className="text-sm text-neutral-300">Color rows by best value</span>
+            <CardHeader className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl">Fixtures</CardTitle>
+                <div className="flex gap-3 items-center">
+                  <div className="flex items-center gap-2" data-testid="value-heatmap-toggle">
+                    <Switch checked={heatmap} onCheckedChange={setHeatmap} />
+                    <span className="text-sm text-neutral-300">Color rows by best value</span>
+                  </div>
+                  <div className="hidden md:flex items-center gap-2" data-testid="auto-refresh-toggle">
+                    <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+                    <span className="text-sm text-neutral-300">Auto-refresh</span>
+                  </div>
                 </div>
+              </div>
+              <div className="flex flex-wrap gap-3 items-center">
+                <div className="flex items-center gap-2" data-testid="value-filter-toggle">
+                  <Switch checked={valueFilterEnabled} onCheckedChange={setValueFilterEnabled} />
+                  <span className="text-sm text-neutral-300">Show only edges ≥ {Math.round(valueThreshold*100)}%</span>
+                </div>
+                <div className="w-48" data-testid="threshold-slider">
+                  <Slider value={[valueThreshold]} min={0} max={0.15} step={0.01} onValueChange={(v)=> setValueThreshold(parseFloat(v[0]))} />
+                </div>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[180px]" data-testid="sort-select"><SelectValue placeholder="Sort by"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="max" data-testid="sort-opt-max">By max edge (desc)</SelectItem>
+                    <SelectItem value="ev" data-testid="sort-opt-ev">By EV (desc)</SelectItem>
+                    <SelectItem value="time" data-testid="sort-opt-time">By start time</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={outcomeScope} onValueChange={setOutcomeScope}>
+                  <SelectTrigger className="w-[160px]" data-testid="outcome-select"><SelectValue placeholder="Scope"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" data-testid="scope-all">All</SelectItem>
+                    <SelectItem value="home" data-testid="scope-home">Home</SelectItem>
+                    {sport === 'football' && <SelectItem value="draw" data-testid="scope-draw">Draw</SelectItem>}
+                    <SelectItem value="away" data-testid="scope-away">Away</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-2" data-testid="auto-refresh-minutes-select">
+                  <span className="text-sm text-neutral-400">Every</span>
+                  <Select value={String(refreshMinutes)} onValueChange={(v)=> setRefreshMinutes(parseInt(v,10))}>
+                    <SelectTrigger className="w-[90px]"><SelectValue placeholder="15m"/></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 min</SelectItem>
+                      <SelectItem value="10">10 min</SelectItem>
+                      <SelectItem value="15">15 min</SelectItem>
+                      <SelectItem value="30">30 min</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-xs text-neutral-500" data-testid="last-updated-label">Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleString() : '-'}</div>
+                <div className="text-xs text-neutral-500" data-testid="filtered-count-label">Filtered: {enhancedFixtures.rows.length} of {enhancedFixtures.total}</div>
+              </div>
+              <div className="flex gap-3 items-center">
                 <Select value={sport} onValueChange={setSport}>
                   <SelectTrigger className="w-[140px]" data-testid="sport-select">
                     <SelectValue placeholder="Sport" />
@@ -395,7 +576,6 @@ const Dashboard = () => {
                     <SelectItem value="basketball" data-testid="sport-opt-basketball">Basketball</SelectItem>
                   </SelectContent>
                 </Select>
-
                 <Select value={league} onValueChange={setLeague}>
                   <SelectTrigger className="w-[160px]" data-testid="league-select">
                     <SelectValue placeholder="League" />
@@ -406,21 +586,18 @@ const Dashboard = () => {
                     ))}
                   </SelectContent>
                 </Select>
-
-                <Button onClick={loadFixtures} variant="secondary" data-testid="refresh-fixtures-btn">Refresh</Button>
+                <Button onClick={()=> loadFixtures({ keepPreds: true })} variant="secondary" data-testid="refresh-fixtures-btn">Refresh</Button>
                 <Button onClick={fetchOdds} variant="outline" data-testid="fetch-odds-btn">Fetch Odds</Button>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {fixtures.length === 0 && (
+                {enhancedFixtures.rows.length === 0 && (
                   <div className="text-neutral-400" data-testid="no-fixtures-msg">No fixtures found for selection</div>
                 )}
-                {fixtures.map((fx) => {
+                {enhancedFixtures.rows.map(({ fx, best }) => {
                   const useModel = modelStatus?.trained;
-                  const isSelected = selectedFixture && (selectedFixture.uuid === (fx.uuid || fx.id));
                   const ml = fx?.odds?.markets?.moneyline;
-                  const best = computeBestValue(fx);
                   const shape = best ? (best.delta >= 0.08 ? '▲' : best.delta <= -0.05 ? '■' : '●') : null;
                   return (
                     <div key={fx.uuid || fx.id} className={`rounded-lg border border-neutral-800 p-4 hover:bg-white/5 ${rowHeatClass(fx)}`} data-testid={`fixture-${fx.uuid || fx.id}`}>
