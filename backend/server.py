@@ -16,6 +16,9 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection (do not change env usage)
+# NOTE: XGBoost/Prophet training endpoints will be added next iteration.
+# We will expose /api/model/train and /api/model/predict with feature engineering per sport.
+
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
