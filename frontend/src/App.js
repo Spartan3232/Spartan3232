@@ -118,7 +118,6 @@ const Dashboard = () => {
 
   useEffect(() => {
     ensurePredictionsForFixtures();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heatmap, fixtures]);
 
   const handlePredict = async (fx) => {
