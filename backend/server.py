@@ -82,6 +82,13 @@ class TrainResponse(BaseModel):
     metrics: Dict[str, Any]
     created_at: str
 
+class ModelPredictRequest(BaseModel):
+    sport: Optional[str] = None
+    league: Optional[str] = None
+    home: Optional[str] = None
+    away: Optional[str] = None
+    fixture_id: Optional[str] = None
+
 # Mock utilities (for UI fallback)
 MOCK_FIXTURES = [
     Fixture(id=str(uuid.uuid4()), sport="football", league="EPL", home="Arsenal", away="Chelsea", kickoff=datetime.now(timezone.utc).isoformat()),
@@ -150,6 +157,51 @@ async def resolve_basketball_league_id(league_name: str) -> Optional[int]:
                 return item.get("id")
         return j["response"][0].get("id")
     return None
+
+async def get_last_seasons_football(league_name: str, n: int = 2) -> List[int]:
+    key = os.environ.get("API_FOOTBALL_KEY")
+    headers = {"x-apisports-key": key}
+    base_url = "https://v3.football.api-sports.io"
+    league_id = await resolve_football_league_id(league_name)
+    if not league_id:
+        return [datetime.now(timezone.utc).year, datetime.now(timezone.utc).year - 1]
+    async with httpx.AsyncClient(timeout=20.0) as cli:
+        r = await cli.get(f"{base_url}/leagues", headers=headers, params={"id": league_id})
+        j = r.json()
+    years: List[int] = []
+    try:
+        resp = j.get("response", [])[0]
+        seasons = resp.get("seasons", [])
+        years = sorted([int(s.get("year")) for s in seasons if s.get("year")], reverse=True)
+    except Exception:
+        pass
+    if not years:
+        y = datetime.now(timezone.utc).year
+        return [y-1, y-2]
+    return years[:n]
+
+async def get_last_seasons_basketball(league_name: str, n: int = 2) -> List[int]:
+    key = os.environ.get("API_BASKETBALL_KEY")
+    headers = {"x-apisports-key": key}
+    base_url = "https://v1.basketball.api-sports.io"
+    league_id = await resolve_basketball_league_id(league_name)
+    if not league_id:
+        y = datetime.now(timezone.utc).year
+        return [y-1, y-2]
+    async with httpx.AsyncClient(timeout=20.0) as cli:
+        r = await cli.get(f"{base_url}/leagues", headers=headers, params={"id": league_id})
+        j = r.json()
+    years: List[int] = []
+    try:
+        resp = j.get("response", [])[0]
+        seasons = resp.get("seasons", [])
+        years = sorted([int(s.get("season")) if isinstance(s, dict) and s.get("season") else int(s) for s in seasons], reverse=True)
+    except Exception:
+        pass
+    if not years:
+        y = datetime.now(timezone.utc).year
+        return [y-1, y-2]
+    return years[:n]
 
 # ---------- Live fixtures (for UI) ----------
 async def fetch_api_football_fixtures(league_name: str, date_iso: Optional[str] = None) -> List[Fixture]:
@@ -225,6 +277,8 @@ async def fetch_football_history(league_name: str, seasons: List[int]) -> pd.Dat
         for season in seasons:
             params = {"league": league_id, "season": season}
             r = await cli.get(f"{base_url}/fixtures", headers=headers, params=params)
+            if r.status_code != 200:
+                continue
             j = r.json()
             for it in j.get("response", []):
                 goals = it.get("goals", {})
@@ -251,6 +305,8 @@ async def fetch_basketball_history(league_name: str, seasons: List[int]) -> pd.D
         for season in seasons:
             params = {"league": league_id, "season": season}
             r = await cli.get(f"{base_url}/games", headers=headers, params=params)
+            if r.status_code != 200:
+                continue
             j = r.json()
             for it in j.get("response", []):
                 home = it.get("teams", {}).get("home", {}).get("name")
@@ -265,7 +321,6 @@ async def fetch_basketball_history(league_name: str, seasons: List[int]) -> pd.D
                 except Exception:
                     pass
                 if hs is None or as_ is None:
-                    # Some APIs put final score under linescore or periods
                     continue
                 dt = it.get("date") or it.get("time")
                 rows.append({"date": dt, "home": home, "away": away, "home_score": hs, "away_score": as_})
@@ -278,14 +333,13 @@ async def fetch_basketball_history(league_name: str, seasons: List[int]) -> pd.D
 # ---------- Feature engineering ----------
 
 def rolling_stats(df: pd.DataFrame, team_col: str, score_for: str, score_against: str, window: int = 5) -> pd.DataFrame:
-    # Build per team rolling features on chronological order
     features = []
-    for team in pd.unique(df[[team_col]].values.ravel()):
-        mask_home = df['home'] == team
-        mask_away = df['away'] == team
-        team_games = df[mask_home | mask_away].copy()
+    if df.empty:
+        return pd.DataFrame()
+    teams = pd.unique(pd.concat([df['home'], df['away']]))
+    for team in teams:
+        team_games = df[(df['home'] == team) | (df['away'] == team)].copy()
         team_games = team_games.sort_values('date')
-        # compute team perspectives
         team_games['for'] = np.where(team_games['home'] == team, team_games[score_for], team_games[score_against])
         team_games['against'] = np.where(team_games['home'] == team, team_games[score_against], team_games[score_for])
         team_games['gd'] = team_games['for'] - team_games['against']
@@ -294,8 +348,9 @@ def rolling_stats(df: pd.DataFrame, team_col: str, score_for: str, score_against
         team_games['loss'] = (team_games['gd'] < 0).astype(int)
         team_games['gd_avg_prev5'] = team_games['gd'].rolling(window).mean().shift(1)
         team_games['win_rate_prev5'] = team_games['win'].rolling(window).mean().shift(1)
-        team_games['games_played'] = np.arange(1, len(team_games)+1)
         features.append(team_games[['date','home','away','gd_avg_prev5','win_rate_prev5']])
+    if not features:
+        return pd.DataFrame()
     feat_df = pd.concat(features).drop_duplicates(subset=['date','home','away']).sort_values('date')
     return feat_df
 
@@ -303,17 +358,17 @@ def rolling_stats(df: pd.DataFrame, team_col: str, score_for: str, score_against
 def build_football_dataset(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
-    # join rolling features for both teams
     home_feat = rolling_stats(df, 'home', 'home_score', 'away_score')
     away_feat = rolling_stats(df, 'away', 'away_score', 'home_score')
+    if home_feat.empty or away_feat.empty:
+        return pd.DataFrame()
     merged = df.merge(home_feat, on=['date','home','away'], how='left', suffixes=(None, '_home'))
     merged = merged.rename(columns={'gd_avg_prev5':'home_gd_avg_prev5','win_rate_prev5':'home_win_rate_prev5'})
     merged = merged.merge(away_feat, on=['date','home','away'], how='left', suffixes=(None, '_away'))
     merged = merged.rename(columns={'gd_avg_prev5':'away_gd_avg_prev5','win_rate_prev5':'away_win_rate_prev5'})
-    # label 0 home, 1 draw, 2 away
     gd = merged['home_score'] - merged['away_score']
     merged['label'] = np.where(gd>0, 0, np.where(gd==0, 1, 2))
-    return merged
+    return merged.dropna(subset=['home_gd_avg_prev5','home_win_rate_prev5','away_gd_avg_prev5','away_win_rate_prev5'])
 
 
 def build_basketball_dataset(df: pd.DataFrame) -> pd.DataFrame:
@@ -321,23 +376,26 @@ def build_basketball_dataset(df: pd.DataFrame) -> pd.DataFrame:
         return df
     home_feat = rolling_stats(df, 'home', 'home_score', 'away_score')
     away_feat = rolling_stats(df, 'away', 'away_score', 'home_score')
+    if home_feat.empty or away_feat.empty:
+        return pd.DataFrame()
     merged = df.merge(home_feat, on=['date','home','away'], how='left', suffixes=(None, '_home'))
     merged = merged.rename(columns={'gd_avg_prev5':'home_pd_avg_prev5','win_rate_prev5':'home_win_rate_prev5'})
     merged = merged.merge(away_feat, on=['date','home','away'], how='left', suffixes=(None, '_away'))
     merged = merged.rename(columns={'gd_avg_prev5':'away_pd_avg_prev5','win_rate_prev5':'away_win_rate_prev5'})
-    # label: home win(1)/loss(0)
     gd = merged['home_score'] - merged['away_score']
     merged['label'] = (gd>0).astype(int)
-    return merged
+    return merged.dropna(subset=['home_pd_avg_prev5','home_win_rate_prev5','away_pd_avg_prev5','away_win_rate_prev5'])
 
 # ---------- Prophet signals ----------
 
 def compute_prophet_team_signal(df: pd.DataFrame, score_col: str) -> Dict[str, float]:
-    # Returns team->predicted score trend value
     signals: Dict[str, float] = {}
-    for team in pd.unique(pd.concat([df['home'], df['away']])):
+    if df.empty:
+        return signals
+    teams = pd.unique(pd.concat([df['home'], df['away']]))
+    for team in teams:
         team_rows = df[(df['home']==team) | (df['away']==team)].copy()
-        if len(team_rows) < 8:
+        if len(team_rows) < 10:
             continue
         team_rows['y'] = np.where(team_rows['home']==team, team_rows[score_col], df.loc[team_rows.index, score_col.replace('home','away')])
         ts = team_rows[['date']].copy()
@@ -349,8 +407,7 @@ def compute_prophet_team_signal(df: pd.DataFrame, score_col: str) -> Dict[str, f
             future = pd.DataFrame({'ds':[pd.Timestamp.utcnow()]})
             yhat = float(m.predict(future)['yhat'].iloc[0])
             signals[team] = yhat
-        except Exception as e:
-            # keep silent for teams with insufficient or unstable series
+        except Exception:
             continue
     return signals
 
@@ -384,45 +441,29 @@ async def load_latest_model(sport: str, league: str) -> Optional[Dict[str, Any]]
 # ---------- API: Train Model ----------
 @api_router.post('/model/train', response_model=TrainResponse)
 async def train_model(req: TrainRequest):
-    # seasons: last two
-    year = datetime.now(timezone.utc).year
-    seasons = [year, year-1]
-
     if req.sport == 'football':
+        seasons = await get_last_seasons_football(req.league, 2)
         hist = await fetch_football_history(req.league, seasons)
         dataset = build_football_dataset(hist)
         if dataset.empty:
             raise HTTPException(status_code=400, detail='Not enough historical data for training')
-        # features
         feat_cols = ['home_gd_avg_prev5','home_win_rate_prev5','away_gd_avg_prev5','away_win_rate_prev5']
         X = dataset[feat_cols].fillna(0.0).values
         y = dataset['label'].values
-        # simple holdout
-        split = int(0.8*len(dataset))
+        split = max(1, int(0.8*len(dataset)))
         X_train, X_test = X[:split], X[split:]
         y_train, y_test = y[:split], y[split:]
-        model = XGBClassifier(
-            objective='multi:softprob',
-            num_class=3,
-            n_estimators=200,
-            max_depth=4,
-            learning_rate=0.1,
-            subsample=0.9,
-            colsample_bytree=0.9,
-            tree_method='hist'
-        )
+        model = XGBClassifier(objective='multi:softprob', num_class=3, n_estimators=200, max_depth=4, learning_rate=0.1, subsample=0.9, colsample_bytree=0.9, tree_method='hist')
         model.fit(X_train, y_train)
         acc = float((model.predict(X_test) == y_test).mean()) if len(X_test)>0 else None
         blob = serialize_model(model)
-        # prophet signals per team (goals for trend)
         signals = compute_prophet_team_signal(dataset.rename(columns={'home_score':'home_for'}), 'home_for')
-        await db.team_signals.update_one({'sport':'football','league':req.league}, {'$set':{
-            'sport':'football','league':req.league,'signals':signals,'generated_at':datetime.now(timezone.utc).isoformat()
-        }}, upsert=True)
-        model_id = await save_model('football', req.league, blob, feat_cols, {'acc':acc, 'algorithm':'xgboost-multi'})
+        await db.team_signals.update_one({'sport':'football','league':req.league}, {'$set':{'sport':'football','league':req.league,'signals':signals,'generated_at':datetime.now(timezone.utc).isoformat()}}, upsert=True)
+        model_id = await save_model('football', req.league, blob, feat_cols, {'acc':acc, 'algorithm':'xgboost-multi', 'seasons':seasons})
         return TrainResponse(id=model_id, sport='football', league=req.league, samples=int(len(dataset)), features=feat_cols, metrics={'acc':acc}, created_at=datetime.now(timezone.utc).isoformat())
 
     if req.sport == 'basketball':
+        seasons = await get_last_seasons_basketball(req.league, 2)
         hist = await fetch_basketball_history(req.league, seasons)
         dataset = build_basketball_dataset(hist)
         if dataset.empty:
@@ -430,42 +471,35 @@ async def train_model(req: TrainRequest):
         feat_cols = ['home_pd_avg_prev5','home_win_rate_prev5','away_pd_avg_prev5','away_win_rate_prev5']
         X = dataset[feat_cols].fillna(0.0).values
         y = dataset['label'].values
-        split = int(0.8*len(dataset))
+        split = max(1, int(0.8*len(dataset)))
         X_train, X_test = X[:split], X[split:]
         y_train, y_test = y[:split], y[split:]
-        model = XGBClassifier(
-            objective='binary:logistic',
-            n_estimators=200,
-            max_depth=4,
-            learning_rate=0.1,
-            subsample=0.9,
-            colsample_bytree=0.9,
-            tree_method='hist'
-        )
+        model = XGBClassifier(objective='binary:logistic', n_estimators=200, max_depth=4, learning_rate=0.1, subsample=0.9, colsample_bytree=0.9, tree_method='hist')
         model.fit(X_train, y_train)
-        from sklearn.metrics import roc_auc_score
-        prob = model.predict_proba(X_test)[:,1] if len(X_test)>0 else np.array([])
-        auc = float(roc_auc_score(y_test, prob)) if prob.size>0 else None
+        try:
+            from sklearn.metrics import roc_auc_score
+            prob = model.predict_proba(X_test)[:,1] if len(X_test)>0 else np.array([])
+            auc = float(roc_auc_score(y_test, prob)) if prob.size>0 else None
+        except Exception:
+            auc = None
         blob = serialize_model(model)
-        # prophet signals (points trend)
         signals = compute_prophet_team_signal(dataset.rename(columns={'home_score':'home_points'}), 'home_points')
-        await db.team_signals.update_one({'sport':'basketball','league':req.league}, {'$set':{
-            'sport':'basketball','league':req.league,'signals':signals,'generated_at':datetime.now(timezone.utc).isoformat()
-        }}, upsert=True)
-        model_id = await save_model('basketball', req.league, blob, feat_cols, {'auc':auc, 'algorithm':'xgboost-binary'})
+        await db.team_signals.update_one({'sport':'basketball','league':req.league}, {'$set':{'sport':'basketball','league':req.league,'signals':signals,'generated_at':datetime.now(timezone.utc).isoformat()}}, upsert=True)
+        model_id = await save_model('basketball', req.league, blob, feat_cols, {'auc':auc, 'algorithm':'xgboost-binary', 'seasons':seasons})
         return TrainResponse(id=model_id, sport='basketball', league=req.league, samples=int(len(dataset)), features=feat_cols, metrics={'auc':auc}, created_at=datetime.now(timezone.utc).isoformat())
 
     raise HTTPException(status_code=400, detail='Unsupported sport')
 
-# ---------- Prediction ----------
+# ---------- Feature computation for inference ----------
 async def compute_on_the_fly_features(sport: str, league: str, home: str, away: str) -> Optional[np.ndarray]:
-    # Fetch last 5 games for each team and compute feature vector
-    seasons = [datetime.now(timezone.utc).year, datetime.now(timezone.utc).year-1]
     if sport == 'football':
+        seasons = await get_last_seasons_football(league, 2)
         hist = await fetch_football_history(league, seasons)
         if hist.empty:
             return None
         df = build_football_dataset(hist)
+        if df.empty:
+            return None
         dfh = df[(df['home']==home) | (df['away']==home)].tail(6)
         dfa = df[(df['home']==away) | (df['away']==away)].tail(6)
         home_gd = float(dfh['home_gd_avg_prev5'].dropna().tail(1).values[-1]) if dfh.shape[0]>0 else 0.0
@@ -474,10 +508,13 @@ async def compute_on_the_fly_features(sport: str, league: str, home: str, away: 
         away_wr = float(dfa['away_win_rate_prev5'].dropna().tail(1).values[-1]) if dfa.shape[0]>0 else 0.0
         return np.array([[home_gd, home_wr, away_gd, away_wr]])
     else:
+        seasons = await get_last_seasons_basketball(league, 2)
         hist = await fetch_basketball_history(league, seasons)
         if hist.empty:
             return None
         df = build_basketball_dataset(hist)
+        if df.empty:
+            return None
         dfh = df[(df['home']==home) | (df['away']==home)].tail(6)
         dfa = df[(df['home']==away) | (df['away']==away)].tail(6)
         home_pd = float(dfh['home_pd_avg_prev5'].dropna().tail(1).values[-1]) if dfh.shape[0]>0 else 0.0
@@ -486,14 +523,14 @@ async def compute_on_the_fly_features(sport: str, league: str, home: str, away: 
         away_wr = float(dfa['away_win_rate_prev5'].dropna().tail(1).values[-1]) if dfa.shape[0]>0 else 0.0
         return np.array([[home_pd, home_wr, away_pd, away_wr]])
 
+# ---------- Inference endpoints ----------
 @api_router.post("/predict", response_model=PredictResponse)
 async def predict(req: PredictRequest):
-    # For MVP, the fixture list is not persisted; we compute probs based on team names in MOCK_FIXTURES selection as a soft linkage
     fx = next((f for f in MOCK_FIXTURES if f.id == req.fixture_id), None)
     if not fx:
         raise HTTPException(status_code=404, detail="Fixture not found")
 
-    # Attempt model-based inference
+    # Try model-based
     try:
         model_doc = await load_latest_model(fx.sport, fx.league)
         if model_doc:
@@ -513,7 +550,6 @@ async def predict(req: PredictRequest):
                     )
                 else:
                     proba = model.predict_proba(X)[0]
-                    # binary: [P(0), P(1)] where 1=home win
                     home_p = float(proba[1])
                     away_p = float(1.0 - home_p)
                     return PredictResponse(
@@ -524,7 +560,7 @@ async def predict(req: PredictRequest):
                         generated_at=datetime.now(timezone.utc).isoformat()
                     )
     except Exception as e:
-        logger.warning(f"Model inference failed, fallback baseline: {e}")
+        logger.warning(f"Model inference failed, baseline fallback: {e}")
 
     # Baseline fallback
     home_strength = max(1, len(fx.home))
@@ -548,6 +584,69 @@ async def predict(req: PredictRequest):
         away = away_strength / total
         return PredictResponse(
             fixture_id=fx.id,
+            home_win_prob=round(home, 3),
+            away_win_prob=round(away, 3),
+            model="baseline-elo-sim",
+            generated_at=datetime.now(timezone.utc).isoformat(),
+        )
+
+@api_router.post('/model/predict', response_model=PredictResponse)
+async def model_predict(req: ModelPredictRequest):
+    # Accept either fixture_id OR (sport, league, home, away)
+    if req.fixture_id:
+        return await predict(PredictRequest(fixture_id=req.fixture_id))
+    if not all([req.sport, req.league, req.home, req.away]):
+        raise HTTPException(status_code=400, detail='Provide either fixture_id or sport,league,home,away')
+
+    # Try model-based
+    model_doc = await load_latest_model(req.sport, req.league)
+    if model_doc:
+        X = await compute_on_the_fly_features(req.sport, req.league, req.home, req.away)
+        if X is not None and X.shape[1] == len(model_doc.get('features', [])):
+            model = deserialize_model(model_doc['model_blob'])
+            if req.sport == 'football':
+                proba = model.predict_proba(X)[0]
+                return PredictResponse(
+                    fixture_id=str(uuid.uuid4()),
+                    home_win_prob=float(round(proba[0],3)),
+                    draw_prob=float(round(proba[1],3)),
+                    away_win_prob=float(round(proba[2],3)),
+                    model='xgboost-prophet',
+                    generated_at=datetime.now(timezone.utc).isoformat()
+                )
+            else:
+                proba = model.predict_proba(X)[0]
+                home_p = float(proba[1])
+                away_p = float(1.0 - home_p)
+                return PredictResponse(
+                    fixture_id=str(uuid.uuid4()),
+                    home_win_prob=float(round(home_p,3)),
+                    away_win_prob=float(round(away_p,3)),
+                    model='xgboost-prophet',
+                    generated_at=datetime.now(timezone.utc).isoformat()
+                )
+    # Fallback baseline if no model yet
+    home_strength = max(1, len(req.home or "home"))
+    away_strength = max(1, len(req.away or "away"))
+    if req.sport == 'football':
+        base_total = home_strength + away_strength
+        draw = 0.18
+        home = (home_strength / base_total) * (1 - draw)
+        away = (away_strength / base_total) * (1 - draw)
+        return PredictResponse(
+            fixture_id=str(uuid.uuid4()),
+            home_win_prob=round(home, 3),
+            draw_prob=round(draw, 3),
+            away_win_prob=round(away, 3),
+            model="baseline-elo-sim",
+            generated_at=datetime.now(timezone.utc).isoformat(),
+        )
+    else:
+        total = home_strength + away_strength
+        home = home_strength / total
+        away = away_strength / total
+        return PredictResponse(
+            fixture_id=str(uuid.uuid4()),
             home_win_prob=round(home, 3),
             away_win_prob=round(away, 3),
             model="baseline-elo-sim",
