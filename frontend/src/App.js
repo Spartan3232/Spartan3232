@@ -11,6 +11,10 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, Dr
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -39,38 +43,46 @@ const relTime = (iso) => {
   return `${Math.floor(diff/86400)}d ago`;
 };
 
+const PAGE_SIZE = 50;
+
+function useVersion() {
+  const [ver, setVer] = useState(null);
+  useEffect(() => {
+    axios.get(`${API}/version`).then(r => setVer(r.data)).catch(() => setVer(null));
+  }, []);
+  return ver;
+}
+
 const Dashboard = () => {
+  // State
   const [sport, setSport] = useState("football");
   const [league, setLeague] = useState("EPL");
   const [fixtures, setFixtures] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [selectedFixture, setSelectedFixture] = useState(null);
   const [prediction, setPrediction] = useState(null);
   const [explanation, setExplanation] = useState(null);
   const [dateValue, setDateValue] = useState(new Date());
   const [training, setTraining] = useState(false);
   const [modelStatus, setModelStatus] = useState(null);
-  const [openOddsUuid, setOpenOddsUuid] = useState(null);
-  const [openModelDrawer, setOpenModelDrawer] = useState(false);
+  const [openRowDrawer, setOpenRowDrawer] = useState(false);
   const [heatmap, setHeatmap] = useState(false);
-  const [predMap, setPredMap] = useState({}); // uuid->prediction
-
-  // Value filter/sort controls persisted
+  const [predMap, setPredMap] = useState({});
   const [valueFilterEnabled, setValueFilterEnabled] = useState(false);
   const [valueThreshold, setValueThreshold] = useState(0.05);
-  const [sortBy, setSortBy] = useState("max"); // max | ev | time
-  const [outcomeScope, setOutcomeScope] = useState("all"); // all | home | draw | away
+  const [sortBy, setSortBy] = useState("time");
+  const [outcomeScope, setOutcomeScope] = useState("all");
+  const [page, setPage] = useState(1);
 
-  // Auto refresh controls
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshMinutes, setRefreshMinutes] = useState(15);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [refreshCount, setRefreshCount] = useState(0);
   const [pageVisible, setPageVisible] = useState(true);
   const timerRef = useRef(null);
   const failureRef = useRef(0);
   const lastOddsMaxRef = useRef(null);
 
-  // Load persisted prefs
+  // Persist prefs
   useEffect(() => {
     try {
       const vf = localStorage.getItem("pref_value_filter_enabled");
@@ -87,8 +99,6 @@ const Dashboard = () => {
       if (rm !== null) setRefreshMinutes(parseInt(rm, 10));
     } catch {}
   }, []);
-
-  // Persist prefs
   useEffect(() => { try { localStorage.setItem("pref_value_filter_enabled", String(valueFilterEnabled)); } catch {} }, [valueFilterEnabled]);
   useEffect(() => { try { localStorage.setItem("pref_value_threshold", String(valueThreshold)); } catch {} }, [valueThreshold]);
   useEffect(() => { try { localStorage.setItem("pref_sort_by", String(sortBy)); } catch {} }, [sortBy]);
@@ -98,27 +108,36 @@ const Dashboard = () => {
 
   const yyyyMmDd = (d) => new Date(d).toISOString().slice(0, 10);
 
+  const getMaxOddsCollected = (list) => {
+    let maxISO = null;
+    for (const fx of list || []) {
+      const iso = fx?.odds?.collected_at;
+      if (iso && (!maxISO || iso > maxISO)) maxISO = iso;
+    }
+    return maxISO;
+  };
+
   const loadFixtures = async (opts = {}) => {
+    setLoading(true);
     try {
       const date = yyyyMmDd(dateValue);
-      const headers = {};
-      if (lastUpdated) headers["If-Modified-Since"] = lastUpdated;
-      let res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date }, headers });
+      let res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
       if (!res.data || res.data.length === 0 || opts.forceLive) {
         await axios.get(`${API}/fixtures`, { params: { sport, league, date } });
-        res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date }, headers });
+        res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
       }
       setFixtures(res.data);
-      setPredMap((prev) => (opts.keepPreds ? prev : {}));
+      setPage(1);
       const maxOddsISO = getMaxOddsCollected(res.data);
       if (maxOddsISO && maxOddsISO !== lastOddsMaxRef.current) {
         if (lastOddsMaxRef.current) toast.success("Odds updated");
         lastOddsMaxRef.current = maxOddsISO;
       }
-      const nowISO = new Date().toISOString();
-      setLastUpdated(nowISO);
+      setLastUpdated(new Date().toISOString());
     } catch (e) {
       console.error("Failed to load fixtures", e);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -142,98 +161,20 @@ const Dashboard = () => {
       const t = toast.loading("Fetching odds...");
       await axios.post(`${API}/fixtures/odds/fetch`, null, { params: { sport, league, date } });
       toast.success("Odds updated", { id: t });
-      await loadFixtures({ keepPreds: true });
+      await loadFixtures({});
     } catch (e) {
       toast.error("Failed to fetch odds");
     }
   };
 
-  const ensurePredictionsForFixtures = async () => {
-    if (!(heatmap || valueFilterEnabled)) return;
-    const copy = { ...predMap };
-    for (const fx of fixtures) {
-      const key = fx.uuid || fx.id;
-      if (copy[key]) continue;
-      try {
-        const body = fx.uuid ? { fixture_uuid: fx.uuid } : { sport, league, home: fx.home, away: fx.away };
-        const res = await axios.post(`${API}/model/predict`, body);
-        copy[key] = res.data;
-        await new Promise(r => setTimeout(r, 120));
-      } catch (e) {
-        // ignore
-      }
-    }
-    setPredMap(copy);
-  };
-
-  useEffect(() => {
-    ensurePredictionsForFixtures();
-  }, [heatmap, valueFilterEnabled, fixtures]);
-
-  const handlePredict = async (fx) => {
-    try {
-      if (!modelStatus || !modelStatus.trained) {
-        toast("No trained model yet — falling back if needed");
-      }
-      const body = fx.uuid ? { fixture_uuid: fx.uuid } : { sport, league, home: fx.home, away: fx.away };
-      const res = await axios.post(`${API}/model/predict`, body);
-      setSelectedFixture({ home: fx.home, away: fx.away, uuid: fx.uuid || fx.id });
-      setPrediction(res.data);
-      setPredMap({ ...(predMap||{}), [fx.uuid || fx.id]: res.data });
-      setExplanation(null);
-      if (res.data.source === "model") {
-        toast.success("Model prediction ready");
-      } else {
-        toast("Baseline prediction used");
-      }
-    } catch (e) {
-      console.error("Prediction failed", e);
-      toast.error("Prediction failed");
-    }
-  };
-
-  const handleExplain = async (fx) => {
-    try {
-      const id = fx.uuid || fx.id;
-      const res = await axios.post(`${API}/explain`, { fixture_id: id });
-      setExplanation(res.data);
-    } catch (e) {
-      console.error("Explain failed", e);
-    }
-  };
-
-  const trainModel = async () => {
-    const t = toast.loading("Training model...");
-    try {
-      setTraining(true);
-      await axios.post(`${API}/model/train`, { sport, league, horizon_days: 14 });
-      await loadModelStatus();
-      toast.success("Training completed", { id: t });
-    } catch (e) {
-      console.error("Training failed", e);
-      const msg = e?.response?.data?.detail || "Training failed";
-      toast.error(msg, { id: t });
-    } finally {
-      setTraining(false);
-    }
-  };
-
-  const leagueOptions = useMemo(() => leaguesBySport[sport] || [], [sport]);
-
-  const modelMetric = useMemo(() => {
-    if (!modelStatus?.metrics) return null;
-    return sport === 'football' ? modelStatus.metrics.acc : modelStatus.metrics.auc;
-  }, [modelStatus, sport]);
+  const ev = (p, odds) => (p == null || odds == null) ? null : (p * (Number(odds) - 1) - (1 - p));
 
   const sidesForScope = (scope) => (scope === 'all' ? ['home', ...(sport === 'football' ? ['draw'] : []), 'away'] : [scope]);
 
-  const ev = (p, odds) => (p == null || odds == null) ? null : (p * (Number(odds) - 1) - (1 - p));
-
   const computeBestValue = (fx, scope = outcomeScope) => {
     const ml = fx?.odds?.markets?.moneyline;
-    if (!ml) return null;
     const pred = predMap[fx.uuid || fx.id];
-    if (!pred) return null;
+    if (!ml || !pred) return null;
     const sides = sidesForScope(scope);
     let best = { side: null, delta: -Infinity, odds: null, p: null, ev: null };
     for (const s of sides) {
@@ -245,8 +186,7 @@ const Dashboard = () => {
       const ev1 = ev(p, o);
       if (delta > best.delta) best = { side: s.toUpperCase(), delta, odds: o, p, ev: ev1 };
     }
-    if (best.side === null) return null;
-    return best;
+    return best.side ? best : null;
   };
 
   const rowHeatClass = (fx) => {
@@ -259,193 +199,24 @@ const Dashboard = () => {
     return "";
   };
 
-  const ValueTag = ({ fx }) => {
-    const best = computeBestValue(fx);
-    if (!best || best.delta < 0.05) return null;
-    const deltaPct = Math.round(best.delta * 100);
-    const p = best.p, o = best.odds;
-    const ev1 = ev(p, o);
-    const shape = best.delta >= 0.08 ? '▲' : best.delta <= -0.05 ? '■' : '●';
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-700/40 cursor-default" data-testid="best-value-tag">
-              {shape} Best Value: {best.side} (+{deltaPct}%)
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <div className="text-xs">
-              <div>Model p: {p?.toFixed ? p.toFixed(3) : p}</div>
-              <div>Implied p: {implied(o)?.toFixed(3)}</div>
-              <div>Odds: {o}</div>
-              <div>EV(1u): {ev1?.toFixed ? ev1.toFixed(3) : ev1}</div>
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  };
+  // Background prediction priming for visible rows
+  const visibleRows = useMemo(() => {
+    return fixtures.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+  }, [fixtures, page]);
 
-  const ModelPill = () => {
-    if (!modelStatus?.trained) return null;
-    const ver = modelStatus.version;
-    const metric = modelMetric != null ? `${Math.round(modelMetric * 100)}%` : "-";
-    return (
-      <Drawer open={openModelDrawer} onOpenChange={setOpenModelDrawer}>
-        <DrawerTrigger asChild>
-          <button className="text-xs px-2 py-0.5 rounded-full bg-white/5 border border-neutral-700 hover:bg-white/10" data-testid="model-pill-btn">
-            Model v{ver} · {sport === 'football' ? 'ACC' : 'AUC'} {metric} · Trained {relTime(modelStatus.created_at)}
-          </button>
-        </DrawerTrigger>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle data-testid="model-drawer-title">Model Status</DrawerTitle>
-            <DrawerDescription>Latest model for {sport.toUpperCase()} • {league}</DrawerDescription>
-          </DrawerHeader>
-          <div className="px-6 pb-6 space-y-3">
-            <div className="text-sm" data-testid="model-drawer-id">Model ID: <span className="font-mono">{modelStatus.model_id}</span>
-              <Button size="sm" variant="outline" className="ml-2" data-testid="copy-model-id-btn" onClick={() => { navigator.clipboard.writeText(modelStatus.model_id); toast.success('Copied model id'); }}>Copy</Button>
-            </div>
-            <div className="text-sm">Version: {modelStatus.version}</div>
-            <div className="text-sm">Seasons: {Array.isArray(modelStatus.seasons) ? modelStatus.seasons.join(', ') : '-'}</div>
-            <div className="text-sm">Samples: {modelStatus.samples ?? '-'}</div>
-            {modelStatus.metrics && (
-              <div className="text-sm space-y-1">
-                {modelStatus.metrics.acc !== undefined && <div>ACC: {modelStatus.metrics.acc?.toFixed ? modelStatus.metrics.acc.toFixed(3) : modelStatus.metrics.acc}</div>}
-                {modelStatus.metrics.auc !== undefined && <div>AUC: {modelStatus.metrics.auc?.toFixed ? modelStatus.metrics.auc.toFixed(3) : modelStatus.metrics.auc}</div>}
-                {modelStatus.metrics.acc_cv_mean !== undefined && <div>ACC (CV): {modelStatus.metrics.acc_cv_mean?.toFixed ? modelStatus.metrics.acc_cv_mean.toFixed(3) : modelStatus.metrics.acc_cv_mean}</div>}
-                {modelStatus.metrics.auc_cv_mean !== undefined && <div>AUC (CV): {modelStatus.metrics.auc_cv_mean?.toFixed ? modelStatus.metrics.auc_cv_mean.toFixed(3) : modelStatus.metrics.auc_cv_mean}</div>}
-              </div>
-            )}
-            {Array.isArray(modelStatus.features_top) && modelStatus.features_top.length > 0 && (
-              <div className="text-sm" data-testid="drawer-top-features">
-                <div className="font-medium mb-1">Top 5 Features</div>
-                <ul className="list-disc ml-5">
-                  {modelStatus.features_top.slice(0,5).map((f, i) => (
-                    <li key={i}>{f.name}: {typeof f.importance === 'number' ? f.importance.toFixed(3) : f.importance}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-          <div className="pb-4 px-6"><DrawerClose asChild><Button variant="outline" data-testid="close-model-drawer">Close</Button></DrawerClose></div>
-        </DrawerContent>
-      </Drawer>
-    );
-  };
-
-  const OddsDrawer = ({ fx }) => {
-    const odds = fx?.odds;
-    if (!odds) return null;
-    const snapshots = fx?.odds_snapshots || odds?.snapshots || [];
-
-    const Spark = ({ data, color }) => {
-      if (!Array.isArray(data) || data.length < 2) return null;
-      const w = 160, h = 40, pad = 4;
-      const xs = data.map((v, i) => [i, Number(v) || 0]);
-      const ys = xs.map(([,y]) => y);
-      const ymin = Math.min(...ys), ymax = Math.max(...ys);
-      const normY = (y) => h - pad - ((y - ymin) / (ymax - ymin || 1)) * (h - 2*pad);
-      const points = xs.map(([i,y]) => ({ x: (i/(xs.length-1))*(w-2*pad)+pad, y: normY(y), yVal: y }));
-      return (
-        <svg width={w} height={h} className="block">
-          <path d={points.map((p,idx)=>`${idx===0?'M':'L'} ${p.x} ${p.y}`).join(' ')} stroke={color} strokeWidth="2" fill="none"/>
-          {points.map((p,idx)=> (<circle key={idx} cx={p.x} cy={p.y} r="2" fill={color}>
-            <title>{new Date(odds.collected_at).toLocaleString()} • {p.yVal}</title>
-          </circle>))}
-        </svg>
-      );
-    };
-
-    return (
-      <Drawer open={openOddsUuid === (fx.uuid || fx.id)} onOpenChange={(o)=> setOpenOddsUuid(o ? (fx.uuid || fx.id) : null)}>
-        <DrawerTrigger asChild>
-          <Button size="sm" variant="outline" data-testid={`odds-drawer-btn-${(fx.uuid || fx.id)}`}>Odds</Button>
-        </DrawerTrigger>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle data-testid="odds-drawer-title">Odds • {fx.home} vs {fx.away}</DrawerTitle>
-            <DrawerDescription>Provider: {odds.provider} • Collected: {new Date(odds.collected_at).toLocaleString()}</DrawerDescription>
-          </DrawerHeader>
-          <div className="px-6 pb-6 space-y-4 text-sm">
-            {odds.markets?.moneyline && (
-              <div data-testid="odds-moneyline-panel">
-                <div className="font-medium mb-1">Moneyline</div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>Home: {odds.markets.moneyline.home ?? '-'} ({fmtPct(implied(odds.markets.moneyline.home))})</div>
-                  {sport === 'football' && <div>Draw: {odds.markets.moneyline.draw ?? '-'} ({fmtPct(implied(odds.markets.moneyline.draw))})</div>}
-                  <div>Away: {odds.markets.moneyline.away ?? '-'} ({fmtPct(implied(odds.markets.moneyline.away))})</div>
-                </div>
-              </div>
-            )}
-            {odds.markets?.spread && (
-              <div data-testid="odds-spread-panel">
-                <div className="font-medium mb-1">Spread</div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>Line: {odds.markets.spread.line ?? '-'}</div>
-                  <div>Home: {odds.markets.spread.home ?? '-'}</div>
-                  <div>Away: {odds.markets.spread.away ?? '-'}</div>
-                </div>
-              </div>
-            )}
-            {odds.markets?.totals && (
-              <div data-testid="odds-totals-panel">
-                <div className="font-medium mb-1">Totals</div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>Line: {odds.markets.totals.line ?? '-'}</div>
-                  <div>Over: {odds.markets.totals.over ?? '-'}</div>
-                  <div>Under: {odds.markets.totals.under ?? '-'}</div>
-                </div>
-              </div>
-            )}
-            {Array.isArray(snapshots) && snapshots.length > 0 && (
-              <div data-testid="odds-sparkline">
-                <div className="font-medium mb-1">Line Movement</div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-neutral-400 mb-1">Home</div>
-                    <Spark data={snapshots.map(s=> s?.markets?.moneyline?.home).filter(Boolean)} color="#34d399" />
-                  </div>
-                  <div>
-                    <div className="text-xs text-neutral-400 mb-1">Away</div>
-                    <Spark data={snapshots.map(s=> s?.markets?.moneyline?.away).filter(Boolean)} color="#f87171" />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="pb-4 px-6"><DrawerClose asChild><Button variant="outline" data-testid="close-odds-drawer">Close</Button></DrawerClose></div>
-        </DrawerContent>
-      </Drawer>
-    );
-  };
-
-  // Derive filtered/sorted fixtures
-  const enhancedFixtures = useMemo(() => {
-    const total = fixtures.length;
-    let rows = fixtures.map(fx => {
-      const best = computeBestValue(fx);
-      return { fx, best };
-    });
-
-    if (valueFilterEnabled) {
-      rows = rows.filter(r => {
-        if (!r.best) return false;
-        return r.best.delta >= valueThreshold;
-      });
-    }
-
-    if (sortBy === 'max') {
-      rows.sort((a,b) => (b.best?.delta ?? -Infinity) - (a.best?.delta ?? -Infinity));
-    } else if (sortBy === 'ev') {
-      rows.sort((a,b) => (b.best?.ev ?? -Infinity) - (a.best?.ev ?? -Infinity));
-    } else {
-      rows.sort((a,b) => new Date(a.fx.date_utc || a.fx.kickoff) - new Date(b.fx.date_utc || b.fx.kickoff));
-    }
-
-    return { total, rows };
-  }, [fixtures, valueFilterEnabled, valueThreshold, sortBy, predMap, outcomeScope]);
+  useEffect(() => {
+    (async () => {
+      const need = visibleRows.filter(fx => !predMap[fx.uuid || fx.id]).slice(0, 60);
+      for (const fx of need) {
+        try {
+          const body = fx.uuid ? { fixture_uuid: fx.uuid } : { sport, league, home: fx.home, away: fx.away };
+          const res = await axios.post(`${API}/model/predict`, body);
+          setPredMap(prev => ({ ...prev, [fx.uuid || fx.id]: res.data }));
+          await new Promise(r => setTimeout(r, 100));
+        } catch {}
+      }
+    })();
+  }, [visibleRows, sport, league]);
 
   // Auto-refresh scheduler
   useEffect(() => {
@@ -461,46 +232,72 @@ const Dashboard = () => {
     const run = async () => {
       try {
         const date = yyyyMmDd(dateValue);
-        // fetch odds then db
         await axios.post(`${API}/fixtures/odds/fetch`, null, { params: { sport, league, date } });
-        const headers = {};
-        if (lastUpdated) headers["If-Modified-Since"] = lastUpdated;
-        const res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } , headers});
+        const res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
         const oldMax = lastOddsMaxRef.current;
         const newMax = getMaxOddsCollected(res.data);
-        if (newMax && newMax !== oldMax) {
-          lastOddsMaxRef.current = newMax;
-          toast.success("Odds updated");
-        }
+        if (newMax && newMax !== oldMax) { lastOddsMaxRef.current = newMax; toast.success("Odds updated"); }
         setFixtures(res.data);
-        setRefreshCount(c => c + 1);
         setLastUpdated(new Date().toISOString());
         failureRef.current = 0;
       } catch (e) {
         failureRef.current = Math.min(5, failureRef.current + 1);
       }
-
       const base = refreshMinutes * 60 * 1000;
-      const jitter = 1 + (Math.random() * 0.4 - 0.2); // ±20%
+      const jitter = 1 + (Math.random() * 0.4 - 0.2);
       const backoff = Math.pow(2, failureRef.current);
-      const delay = Math.min(base * jitter * backoff, 60 * 60 * 1000); // cap at 60m
+      const delay = Math.min(base * jitter * backoff, 60*60*1000);
       timerRef.current = setTimeout(run, delay);
     };
-
-    // initial schedule
     timerRef.current = setTimeout(run, 1000);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [autoRefresh, training, pageVisible, sport, league, dateValue, refreshMinutes]);
 
-  function getMaxOddsCollected(list) {
-    let maxISO = null;
-    for (const fx of list || []) {
-      const iso = fx?.odds?.collected_at;
-      if (iso && (!maxISO || iso > maxISO)) maxISO = iso;
-    }
-    return maxISO;
-  }
+  // Sorting & filtering & paging
+  const enriched = useMemo(() => {
+    const total = fixtures.length;
+    let rows = fixtures.map(fx => ({ fx, best: computeBestValue(fx) }));
+    if (valueFilterEnabled) rows = rows.filter(r => (r.best && r.best.delta >= valueThreshold));
+    if (sortBy === 'time') rows.sort((a,b) => new Date(a.fx.date_utc || a.fx.kickoff) - new Date(b.fx.date_utc || b.fx.kickoff));
+    if (sortBy === 'max') rows.sort((a,b) => (b.best?.delta ?? -Infinity) - (a.best?.delta ?? -Infinity));
+    if (sortBy === 'ev') rows.sort((a,b) => (b.best?.ev ?? -Infinity) - (a.best?.ev ?? -Infinity));
+    return { total, rows };
+  }, [fixtures, predMap, valueFilterEnabled, valueThreshold, sortBy, outcomeScope]);
 
+  const pagedRows = useMemo(() => {
+    const start = (page-1) * PAGE_SIZE;
+    return enriched.rows.slice(start, start + PAGE_SIZE);
+  }, [enriched, page]);
+
+  // Row drawer content helpers
+  const openDetails = (fx) => {
+    setSelectedFixture(fx);
+    setOpenRowDrawer(true);
+  };
+
+  const runPredictSelected = async () => {
+    if (!selectedFixture) return;
+    try {
+      const body = selectedFixture.uuid ? { fixture_uuid: selectedFixture.uuid } : { sport, league, home: selectedFixture.home, away: selectedFixture.away };
+      const res = await axios.post(`${API}/model/predict`, body);
+      setPrediction(res.data);
+      setPredMap(prev => ({ ...prev, [selectedFixture.uuid || selectedFixture.id]: res.data }));
+      toast.success(res.data.source === 'model' ? 'Model prediction ready' : 'Baseline prediction used');
+    } catch { toast.error('Prediction failed'); }
+  };
+
+  const runExplainSelected = async () => {
+    if (!selectedFixture) return;
+    try {
+      const id = selectedFixture.uuid || selectedFixture.id;
+      const res = await axios.post(`${API}/explain`, { fixture_id: id });
+      setExplanation(res.data);
+    } catch { toast.error('Explain failed'); }
+  };
+
+  const ver = useVersion();
+
+  // Layout
   return (
     <div className="min-h-screen bg-[#0b0d0e] text-white">
       <Toaster />
@@ -511,64 +308,16 @@ const Dashboard = () => {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          <Card className="lg:col-span-2 bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800">
-            <CardHeader className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">Fixtures</CardTitle>
-                <div className="flex gap-3 items-center">
-                  <div className="flex items-center gap-2" data-testid="value-heatmap-toggle">
-                    <Switch checked={heatmap} onCheckedChange={setHeatmap} />
-                    <span className="text-sm text-neutral-300">Color rows by best value</span>
-                  </div>
-                  <div className="hidden md:flex items-center gap-2" data-testid="auto-refresh-toggle">
-                    <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
-                    <span className="text-sm text-neutral-300">Auto-refresh</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3 items-center">
-                <div className="flex items-center gap-2" data-testid="value-filter-toggle">
-                  <Switch checked={valueFilterEnabled} onCheckedChange={setValueFilterEnabled} />
-                  <span className="text-sm text-neutral-300">Show only edges ≥ {Math.round(valueThreshold*100)}%</span>
-                </div>
-                <div className="w-48" data-testid="threshold-slider">
-                  <Slider value={[valueThreshold]} min={0} max={0.15} step={0.01} onValueChange={(v)=> setValueThreshold(parseFloat(v[0]))} />
-                </div>
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-[180px]" data-testid="sort-select"><SelectValue placeholder="Sort by"/></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="max" data-testid="sort-opt-max">By max edge (desc)</SelectItem>
-                    <SelectItem value="ev" data-testid="sort-opt-ev">By EV (desc)</SelectItem>
-                    <SelectItem value="time" data-testid="sort-opt-time">By start time</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={outcomeScope} onValueChange={setOutcomeScope}>
-                  <SelectTrigger className="w-[160px]" data-testid="outcome-select"><SelectValue placeholder="Scope"/></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all" data-testid="scope-all">All</SelectItem>
-                    <SelectItem value="home" data-testid="scope-home">Home</SelectItem>
-                    {sport === 'football' && <SelectItem value="draw" data-testid="scope-draw">Draw</SelectItem>}
-                    <SelectItem value="away" data-testid="scope-away">Away</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2" data-testid="auto-refresh-minutes-select">
-                  <span className="text-sm text-neutral-400">Every</span>
-                  <Select value={String(refreshMinutes)} onValueChange={(v)=> setRefreshMinutes(parseInt(v,10))}>
-                    <SelectTrigger className="w-[90px]"><SelectValue placeholder="15m"/></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5 min</SelectItem>
-                      <SelectItem value="10">10 min</SelectItem>
-                      <SelectItem value="15">15 min</SelectItem>
-                      <SelectItem value="30">30 min</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="text-xs text-neutral-500" data-testid="last-updated-label">Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleString() : '-'}</div>
-                <div className="text-xs text-neutral-500" data-testid="filtered-count-label">Filtered: {enhancedFixtures.rows.length} of {enhancedFixtures.total}</div>
-              </div>
-              <div className="flex gap-3 items-center">
+          {/* Left Filters Panel */}
+          <Card className="bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800" data-testid="filters-panel">
+            <CardHeader>
+              <CardTitle className="text-lg">Filters</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="text-sm text-neutral-400">Sport</div>
                 <Select value={sport} onValueChange={setSport}>
-                  <SelectTrigger className="w-[140px]" data-testid="sport-select">
+                  <SelectTrigger className="w-full" data-testid="sport-select">
                     <SelectValue placeholder="Sport" />
                   </SelectTrigger>
                   <SelectContent>
@@ -576,176 +325,265 @@ const Dashboard = () => {
                     <SelectItem value="basketball" data-testid="sport-opt-basketball">Basketball</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm text-neutral-400">League</div>
                 <Select value={league} onValueChange={setLeague}>
-                  <SelectTrigger className="w-[160px]" data-testid="league-select">
+                  <SelectTrigger className="w-full" data-testid="league-select">
                     <SelectValue placeholder="League" />
                   </SelectTrigger>
                   <SelectContent>
-                    {leagueOptions.map((lg) => (
+                    {(leaguesBySport[sport] || []).map((lg) => (
                       <SelectItem key={lg} value={lg} data-testid={`league-opt-${lg}`}>{lg}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button onClick={()=> loadFixtures({ keepPreds: true })} variant="secondary" data-testid="refresh-fixtures-btn">Refresh</Button>
-                <Button onClick={fetchOdds} variant="outline" data-testid="fetch-odds-btn">Fetch Odds</Button>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {enhancedFixtures.rows.length === 0 && (
-                  <div className="text-neutral-400" data-testid="no-fixtures-msg">No fixtures found for selection</div>
-                )}
-                {enhancedFixtures.rows.map(({ fx, best }) => {
-                  const useModel = modelStatus?.trained;
-                  const ml = fx?.odds?.markets?.moneyline;
-                  const shape = best ? (best.delta >= 0.08 ? '▲' : best.delta <= -0.05 ? '■' : '●') : null;
-                  return (
-                    <div key={fx.uuid || fx.id} className={`rounded-lg border border-neutral-800 p-4 hover:bg-white/5 ${rowHeatClass(fx)}`} data-testid={`fixture-${fx.uuid || fx.id}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <div className="font-medium">{fx.home} vs {fx.away}</div>
-                            {useModel && <ModelPill />}
-                            <ValueTag fx={fx} />
-                          </div>
-                          <div className="text-neutral-400 text-sm">{fx.league} • {new Date(fx.date_utc || fx.kickoff).toLocaleString()}</div>
-                          {ml && (
-                            <div className="mt-2 text-xs text-neutral-300 space-y-1" data-testid="fixture-odds-summary">
-                              <div className="flex gap-4 flex-wrap">
-                                <span>ML H: {ml.home ?? '-'} {best?.side === 'HOME' && shape && <span title="best side" className="ml-1">{shape}</span>}</span>
-                                {sport === 'football' && <span>Draw: {ml.draw ?? '-'} {best?.side === 'DRAW' && shape && <span title="best side" className="ml-1">{shape}</span>}</span>}
-                                <span>ML A: {ml.away ?? '-'} {best?.side === 'AWAY' && shape && <span title="best side" className="ml-1">{shape}</span>}</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <OddsDrawer fx={fx} />
-                          <Button size="sm" onClick={() => handlePredict(fx)} data-testid={`predict-btn-${fx.uuid || fx.id}`}>Predict</Button>
-                          <Button size="sm" variant="outline" onClick={() => handleExplain(fx)} data-testid={`explain-btn-${fx.uuid || fx.id}`}>Explain</Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+
+              <div className="space-y-2">
+                <div className="text-sm text-neutral-400">Date</div>
+                <Calendar mode="single" selected={dateValue} onSelect={setDateValue} className="rounded-md border border-neutral-800" data-testid="date-calendar" />
               </div>
+
+              <div className="flex items-center justify-between" data-testid="auto-refresh-toggle">
+                <div className="text-sm">Auto-refresh</div>
+                <Switch checked={autoRefresh} onCheckedChange={setAutoRefresh} />
+              </div>
+
+              <div className="flex items-center gap-2" data-testid="auto-refresh-minutes-select">
+                <span className="text-sm text-neutral-400">Every</span>
+                <Select value={String(refreshMinutes)} onValueChange={(v)=> setRefreshMinutes(parseInt(v,10))}>
+                  <SelectTrigger className="w-[110px]"><SelectValue placeholder="15m"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5 min</SelectItem>
+                    <SelectItem value="10">10 min</SelectItem>
+                    <SelectItem value="15">15 min</SelectItem>
+                    <SelectItem value="30">30 min</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between" data-testid="value-heatmap-toggle">
+                <div className="text-sm">Color rows by best value</div>
+                <Switch checked={heatmap} onCheckedChange={setHeatmap} />
+              </div>
+
+              <div className="flex items-center justify-between" data-testid="value-filter-toggle">
+                <div className="text-sm">Show only edges ≥ {Math.round(valueThreshold*100)}%</div>
+                <Switch checked={valueFilterEnabled} onCheckedChange={setValueFilterEnabled} />
+              </div>
+              <div className="w-full" data-testid="threshold-slider">
+                <Slider value={[valueThreshold]} min={0} max={0.15} step={0.01} onValueChange={(v)=> setValueThreshold(parseFloat(v[0]))} />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm text-neutral-400">Sort by</div>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-full" data-testid="sort-select"><SelectValue placeholder="Sort by"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="time" data-testid="sort-opt-time">By start time</SelectItem>
+                    <SelectItem value="max" data-testid="sort-opt-max">By max edge (desc)</SelectItem>
+                    <SelectItem value="ev" data-testid="sort-opt-ev">By EV (desc)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm text-neutral-400">Outcome scope</div>
+                <Select value={outcomeScope} onValueChange={setOutcomeScope}>
+                  <SelectTrigger className="w-full" data-testid="outcome-select"><SelectValue placeholder="Scope"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" data-testid="scope-all">All</SelectItem>
+                    <SelectItem value="home" data-testid="scope-home">Home</SelectItem>
+                    {sport === 'football' && <SelectItem value="draw" data-testid="scope-draw">Draw</SelectItem>}
+                    <SelectItem value="away" data-testid="scope-away">Away</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button onClick={fetchOdds} data-testid="fetch-odds-btn">Fetch Odds</Button>
+                <Button variant="secondary" onClick={() => loadFixtures()} data-testid="refresh-fixtures-btn">Refresh</Button>
+              </div>
+
+              <div className="text-xs text-neutral-500 pt-1" data-testid="last-updated-label">Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleString() : '-'}</div>
             </CardContent>
           </Card>
 
-          <div className="space-y-6">
-            <Card className="bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800">
-              <CardHeader>
-                <CardTitle className="text-lg">Filter by date</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Calendar mode="single" selected={dateValue} onSelect={setDateValue} className="rounded-md border border-neutral-800" data-testid="date-calendar" />
-              </CardContent>
-            </Card>
-
-            <Card className="bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800" data-testid="model-card">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Model</CardTitle>
-                  <Button size="sm" onClick={trainModel} disabled={training} data-testid="train-model-btn">
-                    {training ? "Training..." : "Train Model"}
-                  </Button>
+          {/* Right Fixtures Table */}
+          <Card className="lg:col-span-2 bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800" data-testid="fixtures-panel">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl">Fixtures</CardTitle>
+                <div className="text-xs text-neutral-500" data-testid="filtered-count-label">Filtered: {enriched.rows.length} of {enriched.total}</div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">
+                  {Array.from({length:8}).map((_,i)=> (<Skeleton key={i} className="w-full h-10 bg-white/5" data-testid={`skeleton-row-${i}`} />))}
                 </div>
-              </CardHeader>
-              <CardContent>
-                {!modelStatus || !modelStatus.trained ? (
-                  <div className="text-neutral-400" data-testid="model-status-empty">No trained model yet for {sport.toUpperCase()} • {league}</div>
-                ) : (
-                  <div className="space-y-2" data-testid="model-status">
-                    <div className="text-sm text-neutral-400">Model ID: {modelStatus.model_id}</div>
-                    <div className="text-xs text-neutral-500">Version: {modelStatus.version} • Seasons: {Array.isArray(modelStatus.seasons) ? modelStatus.seasons.join(', ') : '-' } • Samples: {modelStatus.samples ?? '-'}</div>
-                    {modelStatus.metrics && (
+              ) : enriched.rows.length === 0 ? (
+                <div className="text-neutral-400 text-sm" data-testid="empty-state">
+                  No fixtures for this selection. Try Fetch Odds, switch date, or change league.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table data-testid="fixtures-table">
+                    <Thead>
+                      <Tr>
+                        <Th className="text-left">Time</Th>
+                        <Th className="text-left">Home</Th>
+                        <Th className="text-left">Away</Th>
+                        <Th className="text-left">Moneyline (H/D/A)</Th>
+                        <Th className="text-left">Model Prob (H/D/A)</Th>
+                        <Th className="text-left">Edge (max)</Th>
+                        <Th className="text-left">Badge</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {pagedRows.map(({ fx, best }) => {
+                        const ml = fx?.odds?.markets?.moneyline;
+                        const pred = predMap[fx.uuid || fx.id];
+                        const useModel = modelStatus?.trained;
+                        const shape = best ? (best.delta >= 0.08 ? '▲' : best.delta <= -0.05 ? '■' : '●') : null;
+                        return (
+                          <Tr key={fx.uuid || fx.id} className={`cursor-pointer ${rowHeatClass(fx)}`} onClick={() => openDetails(fx)} data-testid={`fixture-row-${fx.uuid || fx.id}`}>
+                            <Td>{new Date(fx.date_utc || fx.kickoff).toLocaleTimeString()}</Td>
+                            <Td>{fx.home}</Td>
+                            <Td>{fx.away}</Td>
+                            <Td>
+                              {ml ? (
+                                <div className="text-xs">
+                                  <span>H {ml.home ?? '-'}</span>
+                                  {sport === 'football' && <span className="mx-2">D {ml.draw ?? '-'}</span>}
+                                  <span>A {ml.away ?? '-'}</span>
+                                </div>
+                              ) : '-' }
+                            </Td>
+                            <Td>
+                              {pred ? (
+                                <div className="text-xs">
+                                  <span>H {fmtPct(pred.home_win_prob)}</span>
+                                  {sport === 'football' && <span className="mx-2">D {fmtPct(pred.draw_prob)}</span>}
+                                  <span>A {fmtPct(pred.away_win_prob)}</span>
+                                </div>
+                              ) : '-' }
+                            </Td>
+                            <Td>
+                              {best ? (
+                                <div className={`text-xs ${valueColor(best.delta)}`}>
+                                  {shape} {best.side} {(best.delta>0?'+':'')}{(best.delta*100).toFixed(1)}%
+                                </div>
+                              ) : '-' }
+                            </Td>
+                            <Td>
+                              <div className="flex items-center gap-2">
+                                {useModel && <Badge variant="secondary" data-testid="use-model-badge">Use Model</Badge>}
+                                {best && best.delta >= 0.05 && (
+                                  <Badge className="bg-emerald-600/20 text-emerald-300 border-emerald-700/40" data-testid="best-value-badge">Best Value</Badge>
+                                )}
+                              </div>
+                            </Td>
+                          </Tr>
+                        );
+                      })}
+                    </Tbody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {enriched.rows.length > PAGE_SIZE && (
+                <div className="flex items-center justify-end gap-3 mt-4" data-testid="pagination-controls">
+                  <Button variant="outline" disabled={page===1} onClick={()=> setPage(p=>Math.max(1,p-1))} data-testid="page-prev">Prev</Button>
+                  <div className="text-xs text-neutral-400" data-testid="page-indicator">Page {page} / {Math.ceil(enriched.rows.length / PAGE_SIZE)}</div>
+                  <Button variant="outline" disabled={page>=Math.ceil(enriched.rows.length/PAGE_SIZE)} onClick={()=> setPage(p=>p+1)} data-testid="page-next">Next</Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Footer */}
+        <footer className="mt-10 text-xs text-neutral-500" data-testid="footer-version">
+          Build {ver?.ui_commit || 'dev'} · {ver?.deployed_at ? new Date(ver.deployed_at).toLocaleString() : '-'} · Backend {ver?.backend_commit || 'dev'}
+        </footer>
+      </div>
+
+      {/* Row Details Drawer */}
+      <Drawer open={openRowDrawer} onOpenChange={setOpenRowDrawer}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle data-testid="row-details-title">{selectedFixture ? `${selectedFixture.home} vs ${selectedFixture.away}` : 'Fixture Details'}</DrawerTitle>
+            <DrawerDescription>{selectedFixture ? `${selectedFixture.league} • ${new Date(selectedFixture.date_utc || selectedFixture.kickoff).toLocaleString()}` : ''}</DrawerDescription>
+          </DrawerHeader>
+          <div className="px-6 pb-6">
+            <div className="flex gap-2 mb-4">
+              <Button size="sm" onClick={runPredictSelected} data-testid="drawer-predict-btn">Predict</Button>
+              <Button size="sm" variant="outline" onClick={runExplainSelected} data-testid="drawer-explain-btn">Explain</Button>
+            </div>
+            <Tabs defaultValue="overview" data-testid="details-tabs">
+              <TabsList>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="odds">Odds</TabsTrigger>
+                <TabsTrigger value="model">Model</TabsTrigger>
+                <TabsTrigger value="history">History</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="pt-4 space-y-2" data-testid="tab-overview">
+                {selectedFixture && (
+                  <>
+                    <div className="text-sm text-neutral-300">Status: {selectedFixture.status || '-'}</div>
+                    {/* Best value tag */}
+                    <div>
+                      {(() => { const best = computeBestValue(selectedFixture); if (!best || best.delta < 0.05) return null; return (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-700/40" data-testid="drawer-best-value-tag">
+                          Best Value: {best.side} (+{Math.round(best.delta*100)}%)
+                        </span>
+                      ); })()}
+                    </div>
+                  </>
+                )}
+              </TabsContent>
+
+              <TabsContent value="odds" className="pt-4 space-y-3" data-testid="tab-odds">
+                {selectedFixture?.odds ? (
+                  <>
+                    <div className="text-xs text-neutral-400">Provider: {selectedFixture.odds.provider} • Collected: {new Date(selectedFixture.odds.collected_at).toLocaleString()}</div>
+                    <div className="text-sm">Moneyline: H {selectedFixture.odds.markets?.moneyline?.home ?? '-'} {sport==='football' && <>• D {selectedFixture.odds.markets?.moneyline?.draw ?? '-'}</>} • A {selectedFixture.odds.markets?.moneyline?.away ?? '-'}</div>
+                  </>
+                ) : <div className="text-neutral-400 text-sm">No odds available</div>}
+              </TabsContent>
+
+              <TabsContent value="model" className="pt-4 space-y-2" data-testid="tab-model">
+                {modelStatus?.trained ? (
+                  <>
+                    <div className="text-sm">Model: xgboost-prophet</div>
+                    <div className="text-sm">Version: {modelStatus.version}</div>
+                    <div className="text-sm">Metrics: {sport==='football'?`ACC ${modelStatus.metrics?.acc ?? '-'}`:`AUC ${modelStatus.metrics?.auc ?? '-'}`}</div>
+                    <div className="text-sm">Trained: {modelStatus.created_at ? new Date(modelStatus.created_at).toLocaleString() : '-'}</div>
+                    {Array.isArray(modelStatus.features_top) && modelStatus.features_top.length>0 && (
                       <div className="text-sm">
-                        {modelStatus.metrics.acc !== undefined && (
-                          <div data-testid="model-acc">ACC: {modelStatus.metrics.acc?.toFixed ? modelStatus.metrics.acc.toFixed(3) : modelStatus.metrics.acc}</div>
-                        )}
-                        {modelStatus.metrics.auc !== undefined && (
-                          <div data-testid="model-auc">AUC: {modelStatus.metrics.auc?.toFixed ? modelStatus.metrics.auc.toFixed(3) : modelStatus.metrics.auc}</div>
-                        )}
-                        {modelStatus.metrics.acc_cv_mean !== undefined && (
-                          <div data-testid="model-acc-cv">ACC (CV): {modelStatus.metrics.acc_cv_mean?.toFixed ? modelStatus.metrics.acc_cv_mean.toFixed(3) : modelStatus.metrics.acc_cv_mean}</div>
-                        )}
-                        {modelStatus.metrics.auc_cv_mean !== undefined && (
-                          <div data-testid="model-auc-cv">AUC (CV): {modelStatus.metrics.auc_cv_mean?.toFixed ? modelStatus.metrics.auc_cv_mean.toFixed(3) : modelStatus.metrics.auc_cv_mean}</div>
-                        )}
-                      </div>
-                    )}
-                    {Array.isArray(modelStatus.features_top) && modelStatus.features_top.length > 0 && (
-                      <div className="mt-2" data-testid="top-features">
-                        <div className="text-sm font-medium mb-1">Top Features</div>
-                        <ul className="text-sm text-neutral-300 list-disc ml-5">
-                          {modelStatus.features_top.slice(0,5).map((f, idx) => (
-                            <li key={idx}>{f.name}: {typeof f.importance === 'number' ? f.importance.toFixed(3) : f.importance}</li>
-                          ))}
+                        <div className="font-medium mb-1">Top 5 Features</div>
+                        <ul className="list-disc ml-5">
+                          {modelStatus.features_top.slice(0,5).map((f,i)=> (<li key={i}>{f.name}: {typeof f.importance==='number'?f.importance.toFixed(3):f.importance}</li>))}
                         </ul>
                       </div>
                     )}
-                    <div className="text-sm text-neutral-400" data-testid="model-trained-at">Trained: {modelStatus.created_at ? new Date(modelStatus.created_at).toLocaleString() : '-'}</div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  </>
+                ) : <div className="text-neutral-400 text-sm">No trained model yet for this league.</div>}
+              </TabsContent>
 
-            <Card className="bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800" data-testid="prediction-card">
-              <CardHeader>
-                <CardTitle className="text-lg">Prediction</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {!prediction && <div className="text-neutral-400" data-testid="prediction-empty">Run a prediction to see results</div>}
-                {prediction && selectedFixture && (
-                  <div>
-                    <div className="mb-2 font-medium">{selectedFixture.home} vs {selectedFixture.away}</div>
-                    <div className="text-xs text-neutral-400 mb-2">Source: {prediction.source || 'baseline'}</div>
-                    <div className="text-sm text-neutral-400 mb-4">
-                      Model: {prediction.model} {prediction.model_id ? `• ${prediction.model_id}` : ''} {prediction.version ? `• v${prediction.version}` : ''}
-                      {prediction.source === 'model' && (
-                        <>
-                          {' '}• Metric: {sport === 'football' ? (modelStatus?.metrics?.acc?.toFixed?.(3) ?? modelStatus?.metrics?.acc) : (modelStatus?.metrics?.auc?.toFixed?.(3) ?? modelStatus?.metrics?.auc)}
-                        </>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-md bg-white/5 p-3">
-                        <div className="text-xs text-neutral-400">Home</div>
-                        <div className="text-2xl font-semibold" data-testid="prob-home">{Math.round(prediction.home_win_prob * 100)}%</div>
-                      </div>
-                      {typeof prediction.draw_prob === "number" && (
-                        <div className="rounded-md bg-white/5 p-3">
-                          <div className="text-xs text-neutral-400">Draw</div>
-                          <div className="text-2xl font-semibold" data-testid="prob-draw">{Math.round(prediction.draw_prob * 100)}%</div>
-                        </div>
-                      )}
-                      <div className="rounded-md bg-white/5 p-3">
-                        <div className="text-xs text-neutral-400">Away</div>
-                        <div className="text-2xl font-semibold" data-testid="prob-away">{Math.round(prediction.away_win_prob * 100)}%</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800" data-testid="explanation-card">
-              <CardHeader>
-                <CardTitle className="text-lg">AI Explanation</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {!explanation && <div className="text-neutral-400" data-testid="explain-empty">Click Explain on any fixture</div>}
-                {explanation && (
-                  <div>
-                    <div className="text-xs text-neutral-400 mb-2">Model: {explanation.model}</div>
-                    <pre className="whitespace-pre-wrap text-sm" data-testid="explain-text">{explanation.explanation}</pre>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              <TabsContent value="history" className="pt-4" data-testid="tab-history">
+                <div className="text-neutral-400 text-sm">History not available yet.</div>
+              </TabsContent>
+            </Tabs>
           </div>
-        </div>
-      </div>
+          <div className="pb-4 px-6"><DrawerClose asChild><Button variant="outline" data-testid="close-row-drawer">Close</Button></DrawerClose></div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 };
