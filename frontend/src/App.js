@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Toaster, toast } from "@/components/ui/sonner";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger, DrawerClose } from "@/components/ui/drawer";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -19,10 +21,10 @@ const leaguesBySport = {
 
 const fmtPct = (p) => (p === null || p === undefined ? "-" : `${Math.round(p * 100)}%`);
 const implied = (odds) => (odds && Number(odds) > 0 ? 1 / Number(odds) : null);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const valueColor = (delta) => {
   if (delta === null || delta === undefined) return "text-neutral-400";
-  if (delta >= 0.05) return "text-emerald-400";
+  if (delta >= 0.08) return "text-emerald-400";
+  if (delta >= 0.05) return "text-emerald-300";
   if (delta <= -0.05) return "text-rose-400";
   return "text-amber-400";
 };
@@ -48,6 +50,8 @@ const Dashboard = () => {
   const [modelStatus, setModelStatus] = useState(null);
   const [openOddsUuid, setOpenOddsUuid] = useState(null);
   const [openModelDrawer, setOpenModelDrawer] = useState(false);
+  const [heatmap, setHeatmap] = useState(false);
+  const [predMap, setPredMap] = useState({}); // uuid->prediction
 
   const yyyyMmDd = (d) => new Date(d).toISOString().slice(0, 10);
 
@@ -60,6 +64,7 @@ const Dashboard = () => {
         res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
       }
       setFixtures(res.data);
+      setPredMap({});
     } catch (e) {
       console.error("Failed to load fixtures", e);
     }
@@ -91,6 +96,31 @@ const Dashboard = () => {
     }
   };
 
+  const ensurePredictionsForFixtures = async () => {
+    if (!heatmap) return;
+    const date = yyyyMmDd(dateValue);
+    const copy = { ...predMap };
+    for (const fx of fixtures) {
+      const key = fx.uuid || fx.id;
+      if (copy[key]) continue;
+      try {
+        const body = fx.uuid ? { fixture_uuid: fx.uuid } : { sport, league, home: fx.home, away: fx.away };
+        const res = await axios.post(`${API}/model/predict`, body);
+        copy[key] = res.data;
+        // small delay to avoid hammering
+        await new Promise(r => setTimeout(r, 120));
+      } catch (e) {
+        // ignore per-fixture errors
+      }
+    }
+    setPredMap(copy);
+  };
+
+  useEffect(() => {
+    ensurePredictionsForFixtures();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heatmap, fixtures]);
+
   const handlePredict = async (fx) => {
     try {
       if (!modelStatus || !modelStatus.trained) {
@@ -100,6 +130,7 @@ const Dashboard = () => {
       const res = await axios.post(`${API}/model/predict`, body);
       setSelectedFixture({ home: fx.home, away: fx.away, uuid: fx.uuid || fx.id });
       setPrediction(res.data);
+      setPredMap({ ...(predMap||{}), [fx.uuid || fx.id]: res.data });
       setExplanation(null);
       if (res.data.source === "model") {
         toast.success("Model prediction ready");
@@ -145,21 +176,63 @@ const Dashboard = () => {
     return sport === 'football' ? modelStatus.metrics.acc : modelStatus.metrics.auc;
   }, [modelStatus, sport]);
 
-  // Value delta vs odds for the currently selected prediction only
-  const computeValueDelta = (fx, side) => {
-    if (!prediction || !selectedFixture || (selectedFixture.uuid !== (fx.uuid || fx.id))) return null;
+  const computeBestValue = (fx) => {
     const ml = fx?.odds?.markets?.moneyline;
     if (!ml) return null;
-    const impHome = implied(ml.home), impDraw = implied(ml.draw), impAway = implied(ml.away);
-    if (sport === 'football') {
-      if (side === 'home' && prediction.home_win_prob != null && impHome != null) return prediction.home_win_prob - impHome;
-      if (side === 'draw' && prediction.draw_prob != null && impDraw != null) return prediction.draw_prob - impDraw;
-      if (side === 'away' && prediction.away_win_prob != null && impAway != null) return prediction.away_win_prob - impAway;
-    } else {
-      if (side === 'home' && prediction.home_win_prob != null && impHome != null) return prediction.home_win_prob - impHome;
-      if (side === 'away' && prediction.away_win_prob != null && impAway != null) return prediction.away_win_prob - impAway;
+    const pred = predMap[fx.uuid || fx.id];
+    if (!pred) return null;
+    const sides = ['home', ...(sport === 'football' ? ['draw'] : []), 'away'];
+    let best = { side: null, delta: -Infinity, odds: null, p: null };
+    for (const s of sides) {
+      const p = s === 'home' ? pred.home_win_prob : s === 'draw' ? pred.draw_prob : pred.away_win_prob;
+      const o = ml[s];
+      const imp = implied(o);
+      if (p == null || imp == null) continue;
+      const delta = p - imp;
+      if (delta > best.delta) best = { side: s.toUpperCase(), delta, odds: o, p };
     }
-    return null;
+    if (best.side === null) return null;
+    return best;
+  };
+
+  const rowHeatClass = (fx) => {
+    if (!heatmap) return "";
+    const best = computeBestValue(fx);
+    if (!best) return "";
+    if (best.delta >= 0.08) return "bg-emerald-600/10";
+    if (best.delta >= 0.05) return "bg-emerald-500/10";
+    if (best.delta > -0.05 && best.delta < 0.05) return "bg-amber-500/10";
+    return "";
+  };
+
+  const ev = (p, odds) => (p == null || odds == null) ? null : (p * (Number(odds) - 1) - (1 - p));
+
+  const ValueTag = ({ fx }) => {
+    const best = computeBestValue(fx);
+    if (!best || best.delta < 0.05) return null;
+    const deltaPct = Math.round(best.delta * 100);
+    const p = best.p, o = best.odds;
+    const ev1 = ev(p, o);
+    const shape = best.delta >= 0.08 ? '▲' : best.delta <= -0.05 ? '■' : '●';
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-700/40 cursor-default" data-testid="best-value-tag">
+              {shape} Best Value: {best.side} (+{deltaPct}%)
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <div className="text-xs">
+              <div>Model p: {p?.toFixed ? p.toFixed(3) : p}</div>
+              <div>Implied p: {implied(o)?.toFixed(3)}</div>
+              <div>Odds: {o}</div>
+              <div>EV(1u): {ev1?.toFixed ? ev1.toFixed(3) : ev1}</div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   };
 
   const ModelPill = () => {
@@ -215,16 +288,22 @@ const Dashboard = () => {
     if (!odds) return null;
     const snapshots = fx?.odds_snapshots || odds?.snapshots || [];
 
-    // Simple sparkline SVG for home/away moneyline odds (decimal) if snapshots exist
     const Spark = ({ data, color }) => {
       if (!Array.isArray(data) || data.length < 2) return null;
-      const w = 140, h = 36, pad = 4;
+      const w = 160, h = 40, pad = 4;
       const xs = data.map((v, i) => [i, Number(v) || 0]);
       const ys = xs.map(([,y]) => y);
       const ymin = Math.min(...ys), ymax = Math.max(...ys);
       const normY = (y) => h - pad - ((y - ymin) / (ymax - ymin || 1)) * (h - 2*pad);
-      const path = xs.map(([i,y], idx) => `${idx===0?'M':'L'} ${(i/(xs.length-1))*(w-2*pad)+pad} ${normY(y)}`).join(' ');
-      return (<svg width={w} height={h} className="block"><path d={path} stroke={color} strokeWidth="2" fill="none"/></svg>);
+      const points = xs.map(([i,y]) => ({ x: (i/(xs.length-1))*(w-2*pad)+pad, y: normY(y), yVal: y }));
+      return (
+        <svg width={w} height={h} className="block">
+          <path d={points.map((p,idx)=>`${idx===0?'M':'L'} ${p.x} ${p.y}`).join(' ')} stroke={color} strokeWidth="2" fill="none"/>
+          {points.map((p,idx)=> (<circle key={idx} cx={p.x} cy={p.y} r="2" fill={color}>
+            <title>{new Date(odds.collected_at).toLocaleString()} • {p.yVal}</title>
+          </circle>))}
+        </svg>
+      );
     };
 
     return (
@@ -274,11 +353,11 @@ const Dashboard = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-xs text-neutral-400 mb-1">Home</div>
-                    <Spark data={snapshots.map(s=> s?.moneyline?.home).filter(Boolean)} color="#34d399" />
+                    <Spark data={snapshots.map(s=> s?.markets?.moneyline?.home).filter(Boolean)} color="#34d399" />
                   </div>
                   <div>
                     <div className="text-xs text-neutral-400 mb-1">Away</div>
-                    <Spark data={snapshots.map(s=> s?.moneyline?.away).filter(Boolean)} color="#f87171" />
+                    <Spark data={snapshots.map(s=> s?.markets?.moneyline?.away).filter(Boolean)} color="#f87171" />
                   </div>
                 </div>
               </div>
@@ -303,7 +382,11 @@ const Dashboard = () => {
           <Card className="lg:col-span-2 bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-xl">Fixtures</CardTitle>
-              <div className="flex gap-3">
+              <div className="flex gap-3 items-center">
+                <div className="flex items-center gap-2" data-testid="value-heatmap-toggle">
+                  <Switch checked={heatmap} onCheckedChange={setHeatmap} />
+                  <span className="text-sm text-neutral-300">Color rows by best value</span>
+                </div>
                 <Select value={sport} onValueChange={setSport}>
                   <SelectTrigger className="w-[140px]" data-testid="sport-select">
                     <SelectValue placeholder="Sport" />
@@ -338,27 +421,24 @@ const Dashboard = () => {
                   const useModel = modelStatus?.trained;
                   const isSelected = selectedFixture && (selectedFixture.uuid === (fx.uuid || fx.id));
                   const ml = fx?.odds?.markets?.moneyline;
-                  const dHome = computeValueDelta(fx, 'home');
-                  const dDraw = computeValueDelta(fx, 'draw');
-                  const dAway = computeValueDelta(fx, 'away');
-                  const verPill = (
-                    <ModelPill />
-                  );
+                  const best = computeBestValue(fx);
+                  const shape = best ? (best.delta >= 0.08 ? '▲' : best.delta <= -0.05 ? '■' : '●') : null;
                   return (
-                    <div key={fx.uuid || fx.id} className="rounded-lg border border-neutral-800 p-4 hover:bg-white/5" data-testid={`fixture-${fx.uuid || fx.id}`}>
+                    <div key={fx.uuid || fx.id} className={`rounded-lg border border-neutral-800 p-4 hover:bg-white/5 ${rowHeatClass(fx)}`} data-testid={`fixture-${fx.uuid || fx.id}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
                             <div className="font-medium">{fx.home} vs {fx.away}</div>
-                            {useModel && verPill}
+                            {useModel && <ModelPill />}
+                            <ValueTag fx={fx} />
                           </div>
                           <div className="text-neutral-400 text-sm">{fx.league} • {new Date(fx.date_utc || fx.kickoff).toLocaleString()}</div>
                           {ml && (
                             <div className="mt-2 text-xs text-neutral-300 space-y-1" data-testid="fixture-odds-summary">
                               <div className="flex gap-4 flex-wrap">
-                                <span>ML H: {ml.home ?? '-'} <span className={`ml-1 ${valueColor(dHome)}`}>{isSelected && dHome!=null ? (dHome>0?'+':'') + dHome.toFixed(3) : ''}</span></span>
-                                {sport === 'football' && <span>Draw: {ml.draw ?? '-'} <span className={`ml-1 ${valueColor(dDraw)}`}>{isSelected && dDraw!=null ? (dDraw>0?'+':'') + dDraw.toFixed(3) : ''}</span></span>}
-                                <span>ML A: {ml.away ?? '-'} <span className={`ml-1 ${valueColor(dAway)}`}>{isSelected && dAway!=null ? (dAway>0?'+':'') + dAway.toFixed(3) : ''}</span></span>
+                                <span>ML H: {ml.home ?? '-'} {best?.side === 'HOME' && shape && <span title="best side" className="ml-1">{shape}</span>}</span>
+                                {sport === 'football' && <span>Draw: {ml.draw ?? '-'} {best?.side === 'DRAW' && shape && <span title="best side" className="ml-1">{shape}</span>}</span>}
+                                <span>ML A: {ml.away ?? '-'} {best?.side === 'AWAY' && shape && <span title="best side" className="ml-1">{shape}</span>}</span>
                               </div>
                             </div>
                           )}
