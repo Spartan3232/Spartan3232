@@ -13,6 +13,8 @@ import base64
 import pickle
 import re
 import unicodedata
+import asyncio
+from collections import defaultdict, deque
 
 import httpx
 import pandas as pd
@@ -47,13 +49,13 @@ def normalize_name(name: str) -> str:
 async def upsert_team_alias(sport: str, canonical: str):
     norm = normalize_name(canonical)
     existing = await db.teams.find_one({'sport': sport, 'canonical': canonical})
+    now = datetime.now(timezone.utc).isoformat()
     if existing:
         aliases = set(existing.get('aliases', []))
         if norm not in aliases:
             aliases.add(norm)
-            await db.teams.update_one({'sport': sport, 'canonical': canonical}, {'$set': {'aliases': list(aliases), 'updated_at': datetime.now(timezone.utc).isoformat()}}, upsert=True)
+            await db.teams.update_one({'sport': sport, 'canonical': canonical}, {'$set': {'aliases': list(aliases), 'updated_at': now}}, upsert=True)
         return
-    # If a team doc with this alias exists under another canonical, add alias there
     alias_hit = await db.teams.find_one({'sport': sport, 'aliases': {'$in': [norm]}})
     if alias_hit:
         return
@@ -62,8 +64,8 @@ async def upsert_team_alias(sport: str, canonical: str):
         'sport': sport,
         'canonical': canonical,
         'aliases': [norm],
-        'created_at': datetime.now(timezone.utc).isoformat(),
-        'updated_at': datetime.now(timezone.utc).isoformat(),
+        'created_at': now,
+        'updated_at': now,
     })
 
 # Models
@@ -139,6 +141,7 @@ class ModelStatusResponse(BaseModel):
     version: Optional[str] = None
     samples: Optional[int] = None
     seasons: Optional[List[int]] = None
+    features_top: Optional[List[Dict[str, float]]] = None
 
 # Persisted fixture schema helper
 PERSIST_SCHEMA_KEYS = [
@@ -250,6 +253,20 @@ async def get_last_seasons_basketball(league_name: str, n: int = 4) -> List[int]
         return [y-1, y-2, y-3, y-4][:n]
     return years[:n]
 
+# ---------- Rate limiting (simple in-memory) ----------
+train_calls: Dict[str, deque] = defaultdict(deque)
+
+def allow_train(sport: str, league: str, max_calls: int = 2, window_sec: int = 60) -> bool:
+    key = f"{sport}:{league}"
+    q = train_calls[key]
+    now = datetime.now(timezone.utc).timestamp()
+    while q and now - q[0] > window_sec:
+        q.popleft()
+    if len(q) >= max_calls:
+        return False
+    q.append(now)
+    return True
+
 # ---------- Persistence helpers ----------
 async def upsert_fixture_doc(collection_name: str, doc: Dict[str, Any]) -> Dict[str, Any]:
     coll = db[collection_name]
@@ -258,7 +275,6 @@ async def upsert_fixture_doc(collection_name: str, doc: Dict[str, Any]) -> Dict[
     if not doc.get('uuid'):
         doc['uuid'] = str(uuid.uuid4())
         doc['created_at'] = now
-    # Try to find existing by provider_id else by composite key
     qry = {'provider_id': doc.get('provider_id')} if doc.get('provider_id') else {
         'league': doc['league'], 'season': doc.get('season'), 'date_utc': doc['date_utc'], 'home': doc['home'], 'away': doc['away']
     }
@@ -381,8 +397,7 @@ async def fixtures_from_db(sport: str, league: str, date: Optional[str] = Query(
     qry: Dict[str, Any] = {'league': league}
     if date:
         qry['date_utc'] = {'$regex': f"^{date}"}
-    docs = await db[coll].find(qry).sort('date_utc', 1).limit(200).to_list(200)
-    # enforce schema keys order
+    docs = await db[coll].find(qry).sort('date_utc', 1).limit(300).to_list(300)
     def project(d):
         out = {k: d.get(k) for k in PERSIST_SCHEMA_KEYS}
         out['sport'] = sport
@@ -395,6 +410,170 @@ async def get_fixture(uuid_str: str = Path(..., description='fixture uuid')):
     if not doc:
         raise HTTPException(status_code=404, detail='Fixture not found')
     return doc
+
+# ---------- Odds ingestion (API-Sports) ----------
+async def _with_backoff(request_fn, max_attempts=3):
+    delay = 0.5
+    last_exc = None
+    for _ in range(max_attempts):
+        try:
+            return await request_fn()
+        except Exception as e:
+            last_exc = e
+            await asyncio.sleep(delay)
+            delay *= 2
+    if last_exc:
+        raise last_exc
+
+async def _parse_markets(bookmakers: List[Dict[str, Any]]) -> Dict[str, Any]:
+    markets: Dict[str, Any] = {}
+    if not bookmakers:
+        return markets
+    # Use first bookmaker as representative; can be expanded later
+    bets = bookmakers[0].get('bets', [])
+    for bet in bets:
+        name = (bet.get('name') or '').lower()
+        values = bet.get('values', [])
+        # Moneyline
+        if 'winner' in name or 'moneyline' in name or '1x2' in name:
+            m = markets.setdefault('moneyline', {})
+            for v in values:
+                label = (v.get('value') or '').lower()
+                odd = v.get('odd')
+                try:
+                    oddf = float(odd) if odd is not None else None
+                except Exception:
+                    oddf = None
+                if 'home' in label or label in ['1']:
+                    m['home'] = oddf
+                elif 'draw' in label or label in ['x']:
+                    m['draw'] = oddf
+                elif 'away' in label or label in ['2']:
+                    m['away'] = oddf
+        # Totals
+        if 'over/under' in name or 'total' in name:
+            t = markets.setdefault('totals', {})
+            over = next((v for v in values if (v.get('value') or '').lower().startswith('over')), None)
+            under = next((v for v in values if (v.get('value') or '').lower().startswith('under')), None)
+            def _parse_line(v):
+                if not v:
+                    return None
+                val = v.get('value') or ''
+                m = re.search(r"([0-9]+\.?[0-9]*)", val)
+                return float(m.group(1)) if m else None
+            t['line'] = _parse_line(over) or _parse_line(under)
+            try:
+                t['over'] = float(over.get('odd')) if over and over.get('odd') else None
+            except Exception:
+                pass
+            try:
+                t['under'] = float(under.get('odd')) if under and under.get('odd') else None
+            except Exception:
+                pass
+        # Spread / Handicap
+        if 'handicap' in name or 'spread' in name:
+            s = markets.setdefault('spread', {})
+            # Attempt to find line in any value label
+            line = None
+            for v in values:
+                mline = re.search(r"([+-]?[0-9]+\.?[0-9]*)", (v.get('handicap') or v.get('value') or ''))
+                if mline:
+                    try:
+                        line = float(mline.group(1))
+                        break
+                    except Exception:
+                        pass
+            s['line'] = line
+            for v in values:
+                label = (v.get('value') or '').lower()
+                try:
+                    oddf = float(v.get('odd')) if v.get('odd') else None
+                except Exception:
+                    oddf = None
+                if 'home' in label or '1' == label:
+                    s['home'] = oddf
+                elif 'away' in label or '2' == label:
+                    s['away'] = oddf
+    return markets
+
+@api_router.post('/fixtures/odds/fetch')
+async def fetch_odds(sport: str, league: str, date: str):
+    # rate limiting on this endpoint is not strict, but we backoff on failures
+    collected_at = datetime.now(timezone.utc).isoformat()
+    if sport not in ['football','basketball']:
+        raise HTTPException(status_code=400, detail='Unsupported sport')
+
+    if sport == 'football':
+        key = os.environ.get('API_FOOTBALL_KEY')
+        headers = {'x-apisports-key': key}
+        base = 'https://v3.football.api-sports.io'
+        league_id = await resolve_football_league_id(league)
+        season = datetime.now(timezone.utc).year
+        async with httpx.AsyncClient(timeout=25.0) as cli:
+            async def do_req():
+                return await cli.get(f"{base}/odds", headers=headers, params={'league': league_id, 'season': season, 'date': date})
+            r = await _with_backoff(do_req)
+            j = r.json()
+        updated = 0
+        for it in j.get('response', []):
+            fixture_id = it.get('fixture', {}).get('id')
+            markets = await _parse_markets(it.get('bookmakers', []))
+            if not markets:
+                continue
+            odds_payload = {
+                'provider': 'apisports',
+                'collected_at': collected_at,
+                'markets': markets,
+                'raw': None,
+            }
+            doc = await db['football_fixtures'].find_one({'provider_id': fixture_id})
+            if not doc:
+                # try match by names/date
+                home = it.get('teams', {}).get('home', {}).get('name')
+                away = it.get('teams', {}).get('away', {}).get('name')
+                doc = await db['football_fixtures'].find_one({'league': league, 'date_utc': {'$regex': f'^{date}'}, 'home': home, 'away': away})
+            if doc:
+                await db['football_fixtures'].update_one({'uuid': doc['uuid']}, {'$set': {'odds': odds_payload, 'updated_at': collected_at}})
+                updated += 1
+        return {'updated': updated, 'count': len(j.get('response', []))}
+
+    else:
+        key = os.environ.get('API_BASKETBALL_KEY')
+        headers = {'x-apisports-key': key}
+        base = 'https://v1.basketball.api-sports.io'
+        league_id = await resolve_basketball_league_id(league)
+        season = datetime.now(timezone.utc).year
+        async with httpx.AsyncClient(timeout=25.0) as cli:
+            async def do_req():
+                return await cli.get(f"{base}/odds", headers=headers, params={'league': league_id, 'season': season, 'date': date})
+            r = await _with_backoff(do_req)
+            j = r.json()
+        updated = 0
+        for it in j.get('response', []):
+            game_id = it.get('id') or it.get('game', {}).get('id')
+            markets = await _parse_markets(it.get('bookmakers', []))
+            if not markets:
+                continue
+            odds_payload = {
+                'provider': 'apisports',
+                'collected_at': collected_at,
+                'markets': markets,
+                'raw': None,
+            }
+            doc = await db['basketball_fixtures'].find_one({'provider_id': game_id})
+            if not doc:
+                # name/date fallback
+                try:
+                    home = it.get('teams', {}).get('home', {}).get('name')
+                    away = it.get('teams', {}).get('away', {}).get('name')
+                except Exception:
+                    home = away = None
+                if home and away:
+                    doc = await db['basketball_fixtures'].find_one({'league': league, 'date_utc': {'$regex': f'^{date}'}, 'home': home, 'away': away})
+            if doc:
+                await db['basketball_fixtures'].update_one({'uuid': doc['uuid']}, {'$set': {'odds': odds_payload, 'updated_at': collected_at}})
+                updated += 1
+        return {'updated': updated, 'count': len(j.get('response', []))}
 
 # ---------- Training data fetch (historical) ----------
 async def fetch_football_history(league_name: str, seasons: List[int]) -> pd.DataFrame:
@@ -546,7 +725,6 @@ def deserialize_model(s: str) -> Any:
     return pickle.loads(base64.b64decode(s.encode('utf-8')))
 
 async def save_model(sport: str, league: str, model_blob: str, features: List[str], meta: Dict[str, Any]) -> str:
-    # versioning: timestamp-based monotonic
     version = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')
     model_id = str(uuid.uuid4())
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -568,6 +746,9 @@ async def load_latest_model(sport: str, league: str) -> Optional[Dict[str, Any]]
 # ---------- API: Train Model ----------
 @api_router.post('/model/train', response_model=TrainResponse)
 async def train_model(req: TrainRequest):
+    if not allow_train(req.sport, req.league):
+        raise HTTPException(status_code=429, detail='Too many training requests, please retry in a minute')
+
     if req.sport == 'football':
         seasons = await get_last_seasons_football(req.league, 4)
         hist = await fetch_football_history(req.league, seasons)
@@ -582,25 +763,20 @@ async def train_model(req: TrainRequest):
         feat_cols = ['home_gd_avg_prev5','home_win_rate_prev5','away_gd_avg_prev5','away_win_rate_prev5']
         X = dataset[feat_cols].fillna(0.0).values
         y = dataset['label'].values
-        # time-series split (3 folds)
+        # simple rolling CV (3 folds)
         n = len(dataset)
-        fold = n // 4
-        metrics = {}
+        fold = max(1, n // 4)
         accs = []
-        start = 0
         for i in range(3):
-            split = min(n-1, start + fold*3)
-            X_train, X_test = X[start:split], X[split:split+fold]
-            y_train, y_test = y[start:split], y[split:split+fold]
-            if len(X_test) == 0 or len(X_train) == 0:
-                continue
+            split = min(n, (i+1)*fold)
+            X_train, X_test = X[:split], X[split:split+fold]
+            y_train, y_test = y[:split], y[split:split+fold]
+            if len(X_test) == 0:
+                break
             base = XGBClassifier(objective='multi:softprob', num_class=3, n_estimators=150, max_depth=4, learning_rate=0.1, subsample=0.9, colsample_bytree=0.9, tree_method='hist')
             base.fit(X_train, y_train)
-            # simple acc per fold
             accs.append(float((base.predict(X_test) == y_test).mean()))
-            start += fold
-        metrics['acc_cv_mean'] = float(np.mean(accs)) if accs else None
-        # final fit on 80/20 with calibration (multiclass handled internally)
+        metrics = {'acc_cv_mean': float(np.mean(accs)) if accs else None}
         split = max(1, int(0.8*n))
         X_train, X_test = X[:split], X[split:]
         y_train, y_test = y[:split], y[split:]
@@ -608,16 +784,16 @@ async def train_model(req: TrainRequest):
         model.fit(X_train, y_train)
         acc = float((model.predict(X_test) == y_test).mean()) if len(X_test)>0 else None
         metrics['acc'] = acc
-        # feature importances
         try:
             importances = list(map(float, model.feature_importances_))
-            metrics['top_features'] = sorted(dict(zip(feat_cols, importances)).items(), key=lambda x: x[1], reverse=True)[:5]
+            features_top = sorted([{'name': n, 'importance': imp} for n, imp in zip(feat_cols, importances)], key=lambda x: x['importance'], reverse=True)[:5]
+            metrics['top_features'] = features_top
         except Exception:
-            pass
+            features_top = []
         blob = serialize_model(model)
         signals = compute_prophet_team_signal(dataset.rename(columns={'home_score':'home_for'}), 'home_for')
         await db.team_signals.update_one({'sport':'football','league':req.league}, {'$set':{'sport':'football','league':req.league,'signals':signals,'generated_at':datetime.now(timezone.utc).isoformat()}}, upsert=True)
-        model_id = await save_model('football', req.league, blob, feat_cols, {**metrics, 'algorithm':'xgboost-multi', 'seasons':seasons, 'samples': int(len(dataset))})
+        model_id = await save_model('football', req.league, blob, feat_cols, {**metrics, 'features_top': features_top, 'algorithm':'xgboost-multi', 'seasons':seasons, 'samples': int(len(dataset))})
         return TrainResponse(id=model_id, sport='football', league=req.league, samples=int(len(dataset)), features=feat_cols, metrics=metrics, created_at=datetime.now(timezone.utc).isoformat())
 
     if req.sport == 'basketball':
@@ -635,15 +811,14 @@ async def train_model(req: TrainRequest):
         X = dataset[feat_cols].fillna(0.0).values
         y = dataset['label'].values
         n = len(dataset)
-        fold = n // 4
+        fold = max(1, n // 4)
         aucs = []
-        start = 0
         for i in range(3):
-            split = min(n-1, start + fold*3)
-            X_train, X_test = X[start:split], X[split:split+fold]
-            y_train, y_test = y[start:split], y[split:split+fold]
-            if len(X_test) == 0 or len(X_train) == 0:
-                continue
+            split = min(n, (i+1)*fold)
+            X_train, X_test = X[:split], X[split:split+fold]
+            y_train, y_test = y[:split], y[split:split+fold]
+            if len(X_test) == 0:
+                break
             base = XGBClassifier(objective='binary:logistic', n_estimators=150, max_depth=4, learning_rate=0.1, subsample=0.9, colsample_bytree=0.9, tree_method='hist')
             base.fit(X_train, y_train)
             try:
@@ -651,7 +826,6 @@ async def train_model(req: TrainRequest):
                 aucs.append(float(roc_auc_score(y_test, base.predict_proba(X_test)[:,1])))
             except Exception:
                 pass
-            start += fold
         metrics = {'auc_cv_mean': float(np.mean(aucs)) if aucs else None}
         split = max(1, int(0.8*n))
         X_train, X_test = X[:split], X[split:]
@@ -667,13 +841,14 @@ async def train_model(req: TrainRequest):
             pass
         try:
             importances = list(map(float, model.feature_importances_))
-            metrics['top_features'] = sorted(dict(zip(feat_cols, importances)).items(), key=lambda x: x[1], reverse=True)[:5]
+            features_top = sorted([{'name': n, 'importance': imp} for n, imp in zip(feat_cols, importances)], key=lambda x: x['importance'], reverse=True)[:5]
+            metrics['top_features'] = features_top
         except Exception:
-            pass
+            features_top = []
         blob = serialize_model(model)
         signals = compute_prophet_team_signal(dataset.rename(columns={'home_score':'home_points'}), 'home_points')
         await db.team_signals.update_one({'sport':'basketball','league':req.league}, {'$set':{'sport':'basketball','league':req.league,'signals':signals,'generated_at':datetime.now(timezone.utc).isoformat()}}, upsert=True)
-        model_id = await save_model('basketball', req.league, blob, feat_cols, {**metrics, 'algorithm':'xgboost-binary', 'seasons':seasons, 'samples': int(len(dataset))})
+        model_id = await save_model('basketball', req.league, blob, feat_cols, {**metrics, 'features_top': features_top, 'algorithm':'xgboost-binary', 'seasons':seasons, 'samples': int(len(dataset))})
         return TrainResponse(id=model_id, sport='basketball', league=req.league, samples=int(len(dataset)), features=feat_cols, metrics=metrics, created_at=datetime.now(timezone.utc).isoformat())
 
     raise HTTPException(status_code=400, detail='Unsupported sport')
@@ -714,13 +889,11 @@ async def compute_on_the_fly_features(sport: str, league: str, home: str, away: 
 # ---------- Inference endpoints ----------
 @api_router.post("/predict", response_model=PredictResponse)
 async def predict(req: PredictRequest):
-    # Accept legacy mock id or DB fixture uuid
     doc = await get_fixture_by_uuid(req.fixture_id)
-    if doc:
-        fx = Fixture(id=req.fixture_id, sport=('football' if await db['football_fixtures'].find_one({'uuid': req.fixture_id}) else 'basketball'), league=doc.get('league'), home=doc.get('home'), away=doc.get('away'), kickoff=doc.get('date_utc'))
-    else:
-        # not a DB uuid; try to fail fast
+    if not doc:
         raise HTTPException(status_code=404, detail="Fixture not found")
+    sport = 'football' if await db['football_fixtures'].find_one({'uuid': req.fixture_id}) else 'basketball'
+    fx = Fixture(id=req.fixture_id, sport=sport, league=doc.get('league'), home=doc.get('home'), away=doc.get('away'), kickoff=doc.get('date_utc'))
 
     try:
         model_doc = await load_latest_model(fx.sport, fx.league)
@@ -787,7 +960,6 @@ async def predict(req: PredictRequest):
 
 @api_router.post('/model/predict', response_model=PredictResponse)
 async def model_predict(req: ModelPredictRequest):
-    # fixture_uuid preferred
     if req.fixture_uuid:
         doc = await get_fixture_by_uuid(req.fixture_uuid)
         if not doc:
@@ -833,7 +1005,6 @@ async def model_predict(req: ModelPredictRequest):
                     source='model', model_id=model_doc.get('id'), version=meta.get('version'), metric=meta.get('auc'), trained_at=meta.get('created_at')
                 )
 
-    # Fallback baseline
     home_strength = max(1, len(home or 'home'))
     away_strength = max(1, len(away or 'away'))
     if sport == 'football':
@@ -873,11 +1044,12 @@ async def model_status(sport: str, league: str):
     return ModelStatusResponse(
         trained=True,
         model_id=doc.get('id'),
-        metrics={'acc': meta.get('acc'), 'auc': meta.get('auc'), 'acc_cv_mean': meta.get('acc_cv_mean'), 'auc_cv_mean': meta.get('auc_cv_mean'), 'top_features': meta.get('top_features')},
+        metrics={'acc': meta.get('acc'), 'auc': meta.get('auc'), 'acc_cv_mean': meta.get('acc_cv_mean'), 'auc_cv_mean': meta.get('auc_cv_mean')},
         created_at=meta.get('created_at'),
         version=meta.get('version'),
         samples=meta.get('samples'),
-        seasons=meta.get('seasons')
+        seasons=meta.get('seasons'),
+        features_top=meta.get('features_top')
     )
 
 # ---------- LLM explanation ----------

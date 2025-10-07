@@ -31,11 +31,9 @@ const Dashboard = () => {
 
   const loadFixtures = async () => {
     try {
-      // Try DB first
       const date = yyyyMmDd(dateValue);
       let res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
       if (!res.data || res.data.length === 0) {
-        // trigger live pull + persist, then fetch db again
         await axios.get(`${API}/fixtures`, { params: { sport, league, date } });
         res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
       }
@@ -59,14 +57,24 @@ const Dashboard = () => {
     loadModelStatus();
   }, [sport, league, dateValue]);
 
+  const fetchOdds = async () => {
+    try {
+      const date = yyyyMmDd(dateValue);
+      const t = toast.loading("Fetching odds...");
+      await axios.post(`${API}/fixtures/odds/fetch`, null, { params: { sport, league, date } });
+      toast.success("Odds updated", { id: t });
+      await loadFixtures();
+    } catch (e) {
+      toast.error("Failed to fetch odds");
+    }
+  };
+
   const handlePredict = async (fx) => {
     try {
       if (!modelStatus || !modelStatus.trained) {
         toast("No trained model yet — falling back if needed");
       }
-      const body = fx.uuid
-        ? { fixture_uuid: fx.uuid }
-        : { sport, league, home: fx.home, away: fx.away };
+      const body = fx.uuid ? { fixture_uuid: fx.uuid } : { sport, league, home: fx.home, away: fx.away };
       const res = await axios.post(`${API}/model/predict`, body);
       setSelectedFixture({ home: fx.home, away: fx.away, uuid: fx.uuid || fx.id });
       setPrediction(res.data);
@@ -82,9 +90,10 @@ const Dashboard = () => {
     }
   };
 
-  const handleExplain = async (fixtureId) => {
+  const handleExplain = async (fx) => {
     try {
-      const res = await axios.post(`${API}/explain`, { fixture_id: fixtureId });
+      const id = fx.uuid || fx.id;
+      const res = await axios.post(`${API}/explain`, { fixture_id: id });
       setExplanation(res.data);
     } catch (e) {
       console.error("Explain failed", e);
@@ -100,7 +109,8 @@ const Dashboard = () => {
       toast.success("Training completed", { id: t });
     } catch (e) {
       console.error("Training failed", e);
-      toast.error("Training failed", { id: t });
+      const msg = e?.response?.data?.detail || "Training failed";
+      toast.error(msg, { id: t });
     } finally {
       setTraining(false);
     }
@@ -144,6 +154,7 @@ const Dashboard = () => {
                 </Select>
 
                 <Button onClick={loadFixtures} variant="secondary" data-testid="refresh-fixtures-btn">Refresh</Button>
+                <Button onClick={fetchOdds} variant="outline" data-testid="fetch-odds-btn">Fetch Odds</Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -151,18 +162,29 @@ const Dashboard = () => {
                 {fixtures.length === 0 && (
                   <div className="text-neutral-400" data-testid="no-fixtures-msg">No fixtures found for selection</div>
                 )}
-                {fixtures.map((fx) => (
-                  <div key={fx.uuid || fx.id} className="rounded-lg border border-neutral-800 p-4 flex items-center justify-between hover:bg-white/5" data-testid={`fixture-${fx.uuid || fx.id}`}>
-                    <div>
-                      <div className="font-medium">{fx.home} vs {fx.away}</div>
-                      <div className="text-neutral-400 text-sm">{fx.league} • {new Date(fx.date_utc || fx.kickoff).toLocaleString()}</div>
+                {fixtures.map((fx) => {
+                  const useModel = modelStatus?.trained;
+                  return (
+                    <div key={fx.uuid || fx.id} className="rounded-lg border border-neutral-800 p-4 flex items-center justify-between hover:bg-white/5" data-testid={`fixture-${fx.uuid || fx.id}`}>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium">{fx.home} vs {fx.away}</div>
+                          {useModel && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-700/40" data-testid="use-model-badge">Use Model</span>
+                          )}
+                        </div>
+                        <div className="text-neutral-400 text-sm">{fx.league} • {new Date(fx.date_utc || fx.kickoff).toLocaleString()}</div>
+                        {fx.odds && fx.odds.markets?.moneyline && (
+                          <div className="text-xs text-neutral-400 mt-1" data-testid="odds-moneyline">ML: H {fx.odds.markets.moneyline.home || '-'} {fx.odds.markets.moneyline.draw ? `• D ${fx.odds.markets.moneyline.draw}` : ''} • A {fx.odds.markets.moneyline.away || '-'}</div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => handlePredict(fx)} data-testid={`predict-btn-${fx.uuid || fx.id}`}>Predict</Button>
+                        <Button size="sm" variant="outline" onClick={() => handleExplain(fx)} data-testid={`explain-btn-${fx.uuid || fx.id}`}>Explain</Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handlePredict(fx)} data-testid={`predict-btn-${fx.uuid || fx.id}`}>Predict</Button>
-                      <Button size="sm" variant="outline" onClick={() => handleExplain(fx.uuid || fx.id)} data-testid={`explain-btn-${fx.uuid || fx.id}`}>Explain</Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -192,6 +214,7 @@ const Dashboard = () => {
                 ) : (
                   <div className="space-y-2" data-testid="model-status">
                     <div className="text-sm text-neutral-400">Model ID: {modelStatus.model_id}</div>
+                    <div className="text-xs text-neutral-500">Version: {modelStatus.version} • Seasons: {Array.isArray(modelStatus.seasons) ? modelStatus.seasons.join(', ') : '-' } • Samples: {modelStatus.samples ?? '-'}</div>
                     {modelStatus.metrics && (
                       <div className="text-sm">
                         {modelStatus.metrics.acc !== undefined && (
@@ -200,15 +223,22 @@ const Dashboard = () => {
                         {modelStatus.metrics.auc !== undefined && (
                           <div data-testid="model-auc">AUC: {modelStatus.metrics.auc?.toFixed ? modelStatus.metrics.auc.toFixed(3) : modelStatus.metrics.auc}</div>
                         )}
-                        {modelStatus.version && (
-                          <div data-testid="model-version">Version: {modelStatus.version}</div>
+                        {modelStatus.metrics.acc_cv_mean !== undefined && (
+                          <div data-testid="model-acc-cv">ACC (CV): {modelStatus.metrics.acc_cv_mean?.toFixed ? modelStatus.metrics.acc_cv_mean.toFixed(3) : modelStatus.metrics.acc_cv_mean}</div>
                         )}
-                        {Array.isArray(modelStatus.seasons) && (
-                          <div data-testid="model-seasons">Seasons: {modelStatus.seasons.join(', ')}</div>
+                        {modelStatus.metrics.auc_cv_mean !== undefined && (
+                          <div data-testid="model-auc-cv">AUC (CV): {modelStatus.metrics.auc_cv_mean?.toFixed ? modelStatus.metrics.auc_cv_mean.toFixed(3) : modelStatus.metrics.auc_cv_mean}</div>
                         )}
-                        {modelStatus.samples !== undefined && (
-                          <div data-testid="model-samples">Samples: {modelStatus.samples}</div>
-                        )}
+                      </div>
+                    )}
+                    {Array.isArray(modelStatus.features_top) && modelStatus.features_top.length > 0 && (
+                      <div className="mt-2" data-testid="top-features">
+                        <div className="text-sm font-medium mb-1">Top Features</div>
+                        <ul className="text-sm text-neutral-300 list-disc ml-5">
+                          {modelStatus.features_top.slice(0,5).map((f, idx) => (
+                            <li key={idx}>{f.name}: {typeof f.importance === 'number' ? f.importance.toFixed(3) : f.importance}</li>
+                          ))}
+                        </ul>
                       </div>
                     )}
                     <div className="text-sm text-neutral-400" data-testid="model-trained-at">Trained at: {modelStatus.created_at ? new Date(modelStatus.created_at).toLocaleString() : '-'}</div>
@@ -229,6 +259,11 @@ const Dashboard = () => {
                     <div className="text-xs text-neutral-400 mb-2">Source: {prediction.source || 'baseline'}</div>
                     <div className="text-sm text-neutral-400 mb-4">
                       Model: {prediction.model} {prediction.model_id ? `• ${prediction.model_id}` : ''} {prediction.version ? `• v${prediction.version}` : ''}
+                      {prediction.source === 'model' && (
+                        <>
+                          {' '}• Metric: {sport === 'football' ? (modelStatus?.metrics?.acc?.toFixed?.(3) ?? modelStatus?.metrics?.acc) : (modelStatus?.metrics?.auc?.toFixed?.(3) ?? modelStatus?.metrics?.auc)}
+                        </>
+                      )}
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="rounded-md bg-white/5 p-3">
@@ -246,13 +281,6 @@ const Dashboard = () => {
                         <div className="text-2xl font-semibold" data-testid="prob-away">{Math.round(prediction.away_win_prob * 100)}%</div>
                       </div>
                     </div>
-                    {modelStatus && modelStatus.trained && (
-                      <div className="mt-4 text-sm text-neutral-400" data-testid="prediction-metrics">
-                        {modelStatus.metrics?.acc !== undefined && <>ACC: {modelStatus.metrics.acc?.toFixed ? modelStatus.metrics.acc.toFixed(3) : modelStatus.metrics.acc} • </>}
-                        {modelStatus.metrics?.auc !== undefined && <>AUC: {modelStatus.metrics.auc?.toFixed ? modelStatus.metrics.auc.toFixed(3) : modelStatus.metrics.auc} • </>}
-                        Trained: {modelStatus.created_at ? new Date(modelStatus.created_at).toLocaleString() : '-'}
-                      </div>
-                    )}
                   </div>
                 )}
               </CardContent>
