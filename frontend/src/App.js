@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
+import { Toaster, toast } from "@/components/ui/sonner";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -25,10 +26,19 @@ const Dashboard = () => {
   const [dateValue, setDateValue] = useState(new Date());
   const [training, setTraining] = useState(false);
   const [modelStatus, setModelStatus] = useState(null);
-  
+
+  const yyyyMmDd = (d) => new Date(d).toISOString().slice(0, 10);
+
   const loadFixtures = async () => {
     try {
-      const res = await axios.get(`${API}/fixtures`, { params: { sport, league } });
+      // Try DB first
+      const date = yyyyMmDd(dateValue);
+      let res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
+      if (!res.data || res.data.length === 0) {
+        // trigger live pull + persist, then fetch db again
+        await axios.get(`${API}/fixtures`, { params: { sport, league, date } });
+        res = await axios.get(`${API}/fixtures/db`, { params: { sport, league, date } });
+      }
       setFixtures(res.data);
     } catch (e) {
       console.error("Failed to load fixtures", e);
@@ -47,15 +57,28 @@ const Dashboard = () => {
   useEffect(() => {
     loadFixtures();
     loadModelStatus();
-  }, [sport, league]);
+  }, [sport, league, dateValue]);
 
-  const handlePredict = async (fixtureId) => {
+  const handlePredict = async (fx) => {
     try {
-      const res = await axios.post(`${API}/predict`, { fixture_id: fixtureId });
+      if (!modelStatus || !modelStatus.trained) {
+        toast("No trained model yet — falling back if needed");
+      }
+      const body = fx.uuid
+        ? { fixture_uuid: fx.uuid }
+        : { sport, league, home: fx.home, away: fx.away };
+      const res = await axios.post(`${API}/model/predict`, body);
+      setSelectedFixture({ home: fx.home, away: fx.away, uuid: fx.uuid || fx.id });
       setPrediction(res.data);
       setExplanation(null);
+      if (res.data.source === "model") {
+        toast.success("Model prediction ready");
+      } else {
+        toast("Baseline prediction used");
+      }
     } catch (e) {
       console.error("Prediction failed", e);
+      toast.error("Prediction failed");
     }
   };
 
@@ -69,12 +92,15 @@ const Dashboard = () => {
   };
 
   const trainModel = async () => {
+    const t = toast.loading("Training model...");
     try {
       setTraining(true);
       await axios.post(`${API}/model/train`, { sport, league, horizon_days: 14 });
       await loadModelStatus();
+      toast.success("Training completed", { id: t });
     } catch (e) {
       console.error("Training failed", e);
+      toast.error("Training failed", { id: t });
     } finally {
       setTraining(false);
     }
@@ -84,6 +110,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#0b0d0e] text-white">
+      <Toaster />
       <div className="mx-auto max-w-7xl px-6 py-10">
         <header className="mb-8">
           <h1 className="text-4xl md:text-5xl font-semibold tracking-tight" data-testid="app-title">SportOracle</h1>
@@ -125,14 +152,14 @@ const Dashboard = () => {
                   <div className="text-neutral-400" data-testid="no-fixtures-msg">No fixtures found for selection</div>
                 )}
                 {fixtures.map((fx) => (
-                  <div key={fx.id} className="rounded-lg border border-neutral-800 p-4 flex items-center justify-between hover:bg-white/5" data-testid={`fixture-${fx.id}`}>
+                  <div key={fx.uuid || fx.id} className="rounded-lg border border-neutral-800 p-4 flex items-center justify-between hover:bg-white/5" data-testid={`fixture-${fx.uuid || fx.id}`}>
                     <div>
                       <div className="font-medium">{fx.home} vs {fx.away}</div>
-                      <div className="text-neutral-400 text-sm">{fx.league} • {new Date(fx.kickoff).toLocaleString()}</div>
+                      <div className="text-neutral-400 text-sm">{fx.league} • {new Date(fx.date_utc || fx.kickoff).toLocaleString()}</div>
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => { setSelectedFixture(fx); handlePredict(fx.id); }} data-testid={`predict-btn-${fx.id}`}>Predict</Button>
-                      <Button size="sm" variant="outline" onClick={() => { setSelectedFixture(fx); handleExplain(fx.id); }} data-testid={`explain-btn-${fx.id}`}>Explain</Button>
+                      <Button size="sm" onClick={() => handlePredict(fx)} data-testid={`predict-btn-${fx.uuid || fx.id}`}>Predict</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleExplain(fx.uuid || fx.id)} data-testid={`explain-btn-${fx.uuid || fx.id}`}>Explain</Button>
                     </div>
                   </div>
                 ))}
@@ -173,6 +200,15 @@ const Dashboard = () => {
                         {modelStatus.metrics.auc !== undefined && (
                           <div data-testid="model-auc">AUC: {modelStatus.metrics.auc?.toFixed ? modelStatus.metrics.auc.toFixed(3) : modelStatus.metrics.auc}</div>
                         )}
+                        {modelStatus.version && (
+                          <div data-testid="model-version">Version: {modelStatus.version}</div>
+                        )}
+                        {Array.isArray(modelStatus.seasons) && (
+                          <div data-testid="model-seasons">Seasons: {modelStatus.seasons.join(', ')}</div>
+                        )}
+                        {modelStatus.samples !== undefined && (
+                          <div data-testid="model-samples">Samples: {modelStatus.samples}</div>
+                        )}
                       </div>
                     )}
                     <div className="text-sm text-neutral-400" data-testid="model-trained-at">Trained at: {modelStatus.created_at ? new Date(modelStatus.created_at).toLocaleString() : '-'}</div>
@@ -190,7 +226,10 @@ const Dashboard = () => {
                 {prediction && selectedFixture && (
                   <div>
                     <div className="mb-2 font-medium">{selectedFixture.home} vs {selectedFixture.away}</div>
-                    <div className="text-sm text-neutral-400 mb-4">Model: {prediction.model}</div>
+                    <div className="text-xs text-neutral-400 mb-2">Source: {prediction.source || 'baseline'}</div>
+                    <div className="text-sm text-neutral-400 mb-4">
+                      Model: {prediction.model} {prediction.model_id ? `• ${prediction.model_id}` : ''} {prediction.version ? `• v${prediction.version}` : ''}
+                    </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="rounded-md bg-white/5 p-3">
                         <div className="text-xs text-neutral-400">Home</div>
@@ -207,6 +246,13 @@ const Dashboard = () => {
                         <div className="text-2xl font-semibold" data-testid="prob-away">{Math.round(prediction.away_win_prob * 100)}%</div>
                       </div>
                     </div>
+                    {modelStatus && modelStatus.trained && (
+                      <div className="mt-4 text-sm text-neutral-400" data-testid="prediction-metrics">
+                        {modelStatus.metrics?.acc !== undefined && <>ACC: {modelStatus.metrics.acc?.toFixed ? modelStatus.metrics.acc.toFixed(3) : modelStatus.metrics.acc} • </>}
+                        {modelStatus.metrics?.auc !== undefined && <>AUC: {modelStatus.metrics.auc?.toFixed ? modelStatus.metrics.auc.toFixed(3) : modelStatus.metrics.auc} • </>}
+                        Trained: {modelStatus.created_at ? new Date(modelStatus.created_at).toLocaleString() : '-'}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
