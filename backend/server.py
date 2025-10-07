@@ -883,9 +883,11 @@ async def model_status(sport: str, league: str):
 # ---------- LLM explanation ----------
 @api_router.post("/explain", response_model=ExplainResponse)
 async def explain(req: ExplainRequest):
-    fx = next((f for f in MOCK_FIXTURES if f.id == req.fixture_id), None)
-    if not fx:
+    doc = await get_fixture_by_uuid(req.fixture_id)
+    if not doc:
         raise HTTPException(status_code=404, detail="Fixture not found")
+    sport = 'football' if await db['football_fixtures'].find_one({'uuid': req.fixture_id}) else 'basketball'
+    fx = Fixture(id=req.fixture_id, sport=sport, league=doc.get('league'), home=doc.get('home'), away=doc.get('away'), kickoff=doc.get('date_utc'))
 
     text = None
     model_used = req.model or "gpt-4o-mini"
