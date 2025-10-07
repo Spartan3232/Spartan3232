@@ -714,8 +714,12 @@ async def compute_on_the_fly_features(sport: str, league: str, home: str, away: 
 # ---------- Inference endpoints ----------
 @api_router.post("/predict", response_model=PredictResponse)
 async def predict(req: PredictRequest):
-    fx = next((f for f in MOCK_FIXTURES if f.id == req.fixture_id), None)
-    if not fx:
+    # Accept legacy mock id or DB fixture uuid
+    doc = await get_fixture_by_uuid(req.fixture_id)
+    if doc:
+        fx = Fixture(id=req.fixture_id, sport=('football' if await db['football_fixtures'].find_one({'uuid': req.fixture_id}) else 'basketball'), league=doc.get('league'), home=doc.get('home'), away=doc.get('away'), kickoff=doc.get('date_utc'))
+    else:
+        # not a DB uuid; try to fail fast
         raise HTTPException(status_code=404, detail="Fixture not found")
 
     try:
