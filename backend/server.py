@@ -89,6 +89,12 @@ class ModelPredictRequest(BaseModel):
     away: Optional[str] = None
     fixture_id: Optional[str] = None
 
+class ModelStatusResponse(BaseModel):
+    trained: bool
+    model_id: Optional[str] = None
+    metrics: Optional[Dict[str, Any]] = None
+    created_at: Optional[str] = None
+
 # Mock utilities (for UI fallback)
 MOCK_FIXTURES = [
     Fixture(id=str(uuid.uuid4()), sport="football", league="EPL", home="Arsenal", away="Chelsea", kickoff=datetime.now(timezone.utc).isoformat()),
@@ -158,13 +164,14 @@ async def resolve_basketball_league_id(league_name: str) -> Optional[int]:
         return j["response"][0].get("id")
     return None
 
-async def get_last_seasons_football(league_name: str, n: int = 2) -> List[int]:
+async def get_last_seasons_football(league_name: str, n: int = 4) -> List[int]:
     key = os.environ.get("API_FOOTBALL_KEY")
     headers = {"x-apisports-key": key}
     base_url = "https://v3.football.api-sports.io"
     league_id = await resolve_football_league_id(league_name)
     if not league_id:
-        return [datetime.now(timezone.utc).year, datetime.now(timezone.utc).year - 1]
+        y = datetime.now(timezone.utc).year
+        return [y-1, y-2, y-3, y-4][:n]
     async with httpx.AsyncClient(timeout=20.0) as cli:
         r = await cli.get(f"{base_url}/leagues", headers=headers, params={"id": league_id})
         j = r.json()
@@ -177,17 +184,17 @@ async def get_last_seasons_football(league_name: str, n: int = 2) -> List[int]:
         pass
     if not years:
         y = datetime.now(timezone.utc).year
-        return [y-1, y-2]
+        return [y-1, y-2, y-3, y-4][:n]
     return years[:n]
 
-async def get_last_seasons_basketball(league_name: str, n: int = 2) -> List[int]:
+async def get_last_seasons_basketball(league_name: str, n: int = 4) -> List[int]:
     key = os.environ.get("API_BASKETBALL_KEY")
     headers = {"x-apisports-key": key}
     base_url = "https://v1.basketball.api-sports.io"
     league_id = await resolve_basketball_league_id(league_name)
     if not league_id:
         y = datetime.now(timezone.utc).year
-        return [y-1, y-2]
+        return [y-1, y-2, y-3, y-4][:n]
     async with httpx.AsyncClient(timeout=20.0) as cli:
         r = await cli.get(f"{base_url}/leagues", headers=headers, params={"id": league_id})
         j = r.json()
@@ -200,7 +207,7 @@ async def get_last_seasons_basketball(league_name: str, n: int = 2) -> List[int]
         pass
     if not years:
         y = datetime.now(timezone.utc).year
-        return [y-1, y-2]
+        return [y-1, y-2, y-3, y-4][:n]
     return years[:n]
 
 # ---------- Live fixtures (for UI) ----------
@@ -311,15 +318,9 @@ async def fetch_basketball_history(league_name: str, seasons: List[int]) -> pd.D
             for it in j.get("response", []):
                 home = it.get("teams", {}).get("home", {}).get("name")
                 away = it.get("teams", {}).get("away", {}).get("name")
-                # Try various scoring fields
-                hs = None
-                as_ = None
                 scores = it.get("scores") or {}
-                try:
-                    hs = scores.get("home", {}).get("points")
-                    as_ = scores.get("away", {}).get("points")
-                except Exception:
-                    pass
+                hs = scores.get("home", {}).get("points") if isinstance(scores, dict) else None
+                as_ = scores.get("away", {}).get("points") if isinstance(scores, dict) else None
                 if hs is None or as_ is None:
                     continue
                 dt = it.get("date") or it.get("time")
@@ -423,13 +424,14 @@ def deserialize_model(s: str) -> Any:
 
 async def save_model(sport: str, league: str, model_blob: str, features: List[str], meta: Dict[str, Any]) -> str:
     model_id = str(uuid.uuid4())
+    now_iso = datetime.now(timezone.utc).isoformat()
     doc = {
         'id': model_id,
         'sport': sport,
         'league': league,
         'model_blob': model_blob,
         'features': features,
-        'meta': {**meta, 'created_at': datetime.now(timezone.utc).isoformat()},
+        'meta': {**meta, 'created_at': now_iso, 'updated_at': now_iso},
     }
     await db.models.update_one({'id': model_id}, {'$set': doc}, upsert=True)
     return model_id
@@ -441,9 +443,16 @@ async def load_latest_model(sport: str, league: str) -> Optional[Dict[str, Any]]
 # ---------- API: Train Model ----------
 @api_router.post('/model/train', response_model=TrainResponse)
 async def train_model(req: TrainRequest):
+    # Expand seasons to last 4; if data too small, we will try to widen dynamically
     if req.sport == 'football':
-        seasons = await get_last_seasons_football(req.league, 2)
+        seasons = await get_last_seasons_football(req.league, 4)
         hist = await fetch_football_history(req.league, seasons)
+        if hist.empty or len(hist) < 50:
+            # widen attempt: add two more earliest years if available
+            extra = sorted(list(set([seasons[-1]-1, seasons[-1]-2])), reverse=True)
+            hist_extra = await fetch_football_history(req.league, seasons + extra)
+            if len(hist_extra) > len(hist):
+                hist = hist_extra
         dataset = build_football_dataset(hist)
         if dataset.empty:
             raise HTTPException(status_code=400, detail='Not enough historical data for training')
@@ -463,8 +472,13 @@ async def train_model(req: TrainRequest):
         return TrainResponse(id=model_id, sport='football', league=req.league, samples=int(len(dataset)), features=feat_cols, metrics={'acc':acc}, created_at=datetime.now(timezone.utc).isoformat())
 
     if req.sport == 'basketball':
-        seasons = await get_last_seasons_basketball(req.league, 2)
+        seasons = await get_last_seasons_basketball(req.league, 4)
         hist = await fetch_basketball_history(req.league, seasons)
+        if hist.empty or len(hist) < 50:
+            extra = sorted(list(set([seasons[-1]-1, seasons[-1]-2])), reverse=True)
+            hist_extra = await fetch_basketball_history(req.league, seasons + extra)
+            if len(hist_extra) > len(hist):
+                hist = hist_extra
         dataset = build_basketball_dataset(hist)
         if dataset.empty:
             raise HTTPException(status_code=400, detail='Not enough historical data for training')
@@ -493,7 +507,7 @@ async def train_model(req: TrainRequest):
 # ---------- Feature computation for inference ----------
 async def compute_on_the_fly_features(sport: str, league: str, home: str, away: str) -> Optional[np.ndarray]:
     if sport == 'football':
-        seasons = await get_last_seasons_football(league, 2)
+        seasons = await get_last_seasons_football(league, 4)
         hist = await fetch_football_history(league, seasons)
         if hist.empty:
             return None
@@ -508,7 +522,7 @@ async def compute_on_the_fly_features(sport: str, league: str, home: str, away: 
         away_wr = float(dfa['away_win_rate_prev5'].dropna().tail(1).values[-1]) if dfa.shape[0]>0 else 0.0
         return np.array([[home_gd, home_wr, away_gd, away_wr]])
     else:
-        seasons = await get_last_seasons_basketball(league, 2)
+        seasons = await get_last_seasons_basketball(league, 4)
         hist = await fetch_basketball_history(league, seasons)
         if hist.empty:
             return None
@@ -592,13 +606,11 @@ async def predict(req: PredictRequest):
 
 @api_router.post('/model/predict', response_model=PredictResponse)
 async def model_predict(req: ModelPredictRequest):
-    # Accept either fixture_id OR (sport, league, home, away)
     if req.fixture_id:
         return await predict(PredictRequest(fixture_id=req.fixture_id))
     if not all([req.sport, req.league, req.home, req.away]):
         raise HTTPException(status_code=400, detail='Provide either fixture_id or sport,league,home,away')
 
-    # Try model-based
     model_doc = await load_latest_model(req.sport, req.league)
     if model_doc:
         X = await compute_on_the_fly_features(req.sport, req.league, req.home, req.away)
@@ -625,7 +637,7 @@ async def model_predict(req: ModelPredictRequest):
                     model='xgboost-prophet',
                     generated_at=datetime.now(timezone.utc).isoformat()
                 )
-    # Fallback baseline if no model yet
+    # Baseline fallback
     home_strength = max(1, len(req.home or "home"))
     away_strength = max(1, len(req.away or "away"))
     if req.sport == 'football':
@@ -652,6 +664,19 @@ async def model_predict(req: ModelPredictRequest):
             model="baseline-elo-sim",
             generated_at=datetime.now(timezone.utc).isoformat(),
         )
+
+# ---------- Model status ----------
+@api_router.get('/model/status', response_model=ModelStatusResponse)
+async def model_status(sport: str, league: str):
+    doc = await load_latest_model(sport, league)
+    if not doc:
+        return ModelStatusResponse(trained=False)
+    return ModelStatusResponse(
+        trained=True,
+        model_id=doc.get('id'),
+        metrics=doc.get('meta', {}),
+        created_at=doc.get('meta', {}).get('created_at')
+    )
 
 # ---------- LLM explanation ----------
 @api_router.post("/explain", response_model=ExplainResponse)

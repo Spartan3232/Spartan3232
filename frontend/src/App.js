@@ -23,6 +23,8 @@ const Dashboard = () => {
   const [prediction, setPrediction] = useState(null);
   const [explanation, setExplanation] = useState(null);
   const [dateValue, setDateValue] = useState(new Date());
+  const [training, setTraining] = useState(false);
+  const [modelStatus, setModelStatus] = useState(null);
   
   const loadFixtures = async () => {
     try {
@@ -33,8 +35,18 @@ const Dashboard = () => {
     }
   };
 
+  const loadModelStatus = async () => {
+    try {
+      const res = await axios.get(`${API}/model/status`, { params: { sport, league } });
+      setModelStatus(res.data);
+    } catch (e) {
+      setModelStatus(null);
+    }
+  };
+
   useEffect(() => {
     loadFixtures();
+    loadModelStatus();
   }, [sport, league]);
 
   const handlePredict = async (fixtureId) => {
@@ -53,6 +65,18 @@ const Dashboard = () => {
       setExplanation(res.data);
     } catch (e) {
       console.error("Explain failed", e);
+    }
+  };
+
+  const trainModel = async () => {
+    try {
+      setTraining(true);
+      await axios.post(`${API}/model/train`, { sport, league, horizon_days: 14 });
+      await loadModelStatus();
+    } catch (e) {
+      console.error("Training failed", e);
+    } finally {
+      setTraining(false);
     }
   };
 
@@ -123,6 +147,37 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Calendar mode="single" selected={dateValue} onSelect={setDateValue} className="rounded-md border border-neutral-800" data-testid="date-calendar" />
+              </CardContent>
+            </Card>
+
+            <Card className="bg-[#0f1316]/80 backdrop-blur-xl border-neutral-800" data-testid="model-card">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Model</CardTitle>
+                  <Button size="sm" onClick={trainModel} disabled={training} data-testid="train-model-btn">
+                    {training ? "Training..." : "Train Model"}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {!modelStatus || !modelStatus.trained ? (
+                  <div className="text-neutral-400" data-testid="model-status-empty">No trained model yet for {sport.toUpperCase()} • {league}</div>
+                ) : (
+                  <div className="space-y-2" data-testid="model-status">
+                    <div className="text-sm text-neutral-400">Model ID: {modelStatus.model_id}</div>
+                    {modelStatus.metrics && (
+                      <div className="text-sm">
+                        {modelStatus.metrics.acc !== undefined && (
+                          <div data-testid="model-acc">ACC: {modelStatus.metrics.acc?.toFixed ? modelStatus.metrics.acc.toFixed(3) : modelStatus.metrics.acc}</div>
+                        )}
+                        {modelStatus.metrics.auc !== undefined && (
+                          <div data-testid="model-auc">AUC: {modelStatus.metrics.auc?.toFixed ? modelStatus.metrics.auc.toFixed(3) : modelStatus.metrics.auc}</div>
+                        )}
+                      </div>
+                    )}
+                    <div className="text-sm text-neutral-400" data-testid="model-trained-at">Trained at: {modelStatus.created_at ? new Date(modelStatus.created_at).toLocaleString() : '-'}</div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
