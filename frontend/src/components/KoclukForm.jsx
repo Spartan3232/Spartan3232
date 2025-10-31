@@ -253,6 +253,56 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
         </CardContent>
       </Card>
 
+      {/* Koçluk Tipi & Yapılan Uygulama */}
+      <Card className="bg-white shadow-md border-gray-200">
+        <CardContent className="p-6 space-y-6">
+          {/* Koçluk Tipi */}
+          <div>
+            <Label className="text-base font-semibold text-gray-700 mb-3 flex items-center">
+              Koçluk Tipi <span className="text-red-500 ml-1">*</span>
+            </Label>
+            <RadioGroup value={koclukTipi} onValueChange={setKoclukTipi} className="flex space-x-4">
+              <div className="flex items-center space-x-2 border rounded-lg px-4 py-3 hover:bg-gray-50 cursor-pointer">
+                <RadioGroupItem value="Saha Koçluğu" id="saha" />
+                <Label htmlFor="saha" className="cursor-pointer">Saha Koçluğu</Label>
+              </div>
+              <div className="flex items-center space-x-2 border rounded-lg px-4 py-3 hover:bg-gray-50 cursor-pointer">
+                <RadioGroupItem value="Ofis Koçluğu" id="ofis" />
+                <Label htmlFor="ofis" className="cursor-pointer">Ofis Koçluğu</Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Yapılan Uygulama */}
+          <div>
+            <Label className="text-base font-semibold text-gray-700 mb-3">
+              Yapılan Uygulama
+            </Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {YAPILAN_UYGULAMALAR.map((uygulama) => (
+                <div
+                  key={uygulama}
+                  className={`flex items-center space-x-2 border rounded-lg px-4 py-3 cursor-pointer transition-colors ${
+                    yapilanUygulamalar.includes(uygulama) 
+                      ? 'bg-blue-50 border-blue-300' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => toggleUygulama(uygulama)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={yapilanUygulamalar.includes(uygulama)}
+                    onChange={() => {}}
+                    className="h-4 w-4 text-blue-600 rounded border-gray-300"
+                  />
+                  <Label className="cursor-pointer flex-1">{uygulama}</Label>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ETKİNLİK KONULARI */}
       <Card className="bg-white shadow-md border-gray-200">
         <CardContent className="p-6">
