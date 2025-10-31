@@ -68,6 +68,7 @@ class KoclukOturumu(BaseModel):
     eczane_sayisi: int
     kocluk_tipi: str  # "Saha Koçluğu" or "Ofis Koçluğu"
     yapilan_uygulamalar: List[str] = Field(default_factory=list)  # ["Eğitim", "İkili ziyaret", etc.]
+    status: str = "draft"  # "draft" or "final"
     ortak_yorum_1: Optional[str] = None
     ortak_yorum_2: Optional[str] = None
 
