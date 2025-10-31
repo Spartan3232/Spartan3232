@@ -1,0 +1,127 @@
+{
+  "Ürün Bilgisi": {
+    "nasil1": "Her hafta ürün broşürü üzerinden 5 anahtar nokta tekrar edin ve ekip toplantısında kendinizi test edin.",
+    "nasil2": "Ürün portal/e-öğrenme modülünü tamamlayın ve sertifika alın.",
+    "nasil3": "İlk 3 görüşmede ürün özelliklerini FAB cümlesiyle anlatın ve MSL'den feedback alın."
+  },
+  "Medikal Bilgi": {
+    "nasil1": "Her hafta 1 klinik çalışma özetini okuyun ve özet not çıkarın.",
+    "nasil2": "Tedavi kılavuzundan 2 öneriyi görüşmelerde kullanın ve kaydını tutun.",
+    "nasil3": "Medikal sorulara 'kanıta dayalı' cevap verme pratiği yapın; 3 görüşmede uygulayın."
+  },
+  "Rekabet Bilgisi": {
+    "nasil1": "Rakip ürünlerle kıyaslama kartı hazırlayın (özellik-fark tablosu).",
+    "nasil2": "3 yaygın rakip argümanına LAER yanıt kütüphanesi oluşturun.",
+    "nasil3": "5 ziyarette 'farkımız şu' cümlesi kurun ve CRM'e kaydedin."
+  },
+  "Bölge/Pazar Bilgisi": {
+    "nasil1": "Son 3 ay CRM ısı haritasını inceleyin ve düşük aktivite bölgelerini işaretleyin.",
+    "nasil2": "10 hekim gap listesi çıkarın (potansiyel yüksek ama ziyaret az).",
+    "nasil3": "Bu ayda 2 ek yüksek potansiyel hekim ziyareti planlayın."
+  },
+  "Brick/Bireysel Bölge Bilgisi": {
+    "nasil1": "Brick bazında hekim potansiyel haritası çıkarın (reçete + ziyaret sıklığı).",
+    "nasil2": "En yüksek potansiyel 5 hekimi önceliklendirin.",
+    "nasil3": "Haftalık rota planında bu 5 hekime özel slot ayırın."
+  },
+  "Ziyaret Öncesi Planlama ve Hazırlık": {
+    "nasil1": "Her görüşme için AMAÇ-MESAJ-DELİL kartı doldurun.",
+    "nasil2": "Açılış cümlesi ve kapanış cümlesini aynada/sesli prova edin.",
+    "nasil3": "Gerekli tanıtım malzemesini ve notları önceden hazırlayın."
+  },
+  "Hedefleme / Segmentasyon": {
+    "nasil1": "Hekim listesini A+/A/B/C segmentine ayırın; A+ için 15 hekim belirleyin.",
+    "nasil2": "Haftalık planda A+ hekimlere minimum 5 odak ziyaret planlayın.",
+    "nasil3": "Segment performansını aylık gözden geçirin ve ayarlayın."
+  },
+  "Stratejiye uygun sunum planlaması": {
+    "nasil1": "Bölge stratejisine uygun mesaj haritası oluşturun (öncelik sırasıyla).",
+    "nasil2": "Her segment için farklı açılış ve kapanış senaryosu hazırlayın.",
+    "nasil3": "Haftalık 3 görüşmede strateji uyumlu sunum yapın ve kayıt tutun."
+  },
+  "Ziyaret sonrası analiz/değerlendirme ve önceki ziyaretle ilişkilendirme": {
+    "nasil1": "Her ziyaret sonrası CRM'e 'ne oldu + sonraki adım' notu ekleyin.",
+    "nasil2": "Önceki ziyaret notunu okuyarak sürekliliği sağlayın.",
+    "nasil3": "Haftalık self-analiz: 'hangi ziyaret başarılı, neden?' sorusunu yanıtlayın."
+  },
+  "Etkili giriş (İlgi oluşturma)": {
+    "nasil1": "İlk 30 saniyede hekim ilgisini çekecek soru veya vaka açın.",
+    "nasil2": "5 farklı açılış cümlesi hazırlayın ve en etkiliyi seçin.",
+    "nasil3": "İlk 3 görüşmede 'ilgi puanı' self-değerlendirmesi yapın."
+  },
+  "Etkili soru sorma becerisi": {
+    "nasil1": "Açık uçlu soru listesi hazırlayın (örn: 'Bu konuda deneyiminiz nasıl?').",
+    "nasil2": "Her görüşmede en az 3 açık uçlu soru sorun.",
+    "nasil3": "Rol-oyunu ile soru sorma pratiği yapın ve feedback alın."
+  },
+  "Aktif dinleme": {
+    "nasil1": "Görüşme sırasında not almadan sadece dinleme egzersizi yapın.",
+    "nasil2": "Hekimin söylediklerini kendi cümlelerinizle özetleyip teyit edin.",
+    "nasil3": "3 görüşmede 'ben sizi doğru anladım mı?' sorusu sorun."
+  },
+  "İhtiyaçların ortaya çıkarılması ve giderilmesi": {
+    "nasil1": "Soru sorarak hekimin öncelik listesini çıkarın.",
+    "nasil2": "Tespit edilen ihtiyaca özel çözüm sunun (ürün/hizmet/bilgi).",
+    "nasil3": "Görüşme sonunda 'ihtiyacınıza çözüm sunduk mu?' teyidi alın."
+  },
+  "İtirazları anlama ve karşılama": {
+    "nasil1": "3 yaygın itiraz için LAER (Dinle-Anla-Keşfet-Yanıtla) senaryosu yazın.",
+    "nasil2": "İtiraz geldiğinde önce 'Anladım, daha fazla bilgi alabilir miyim?' sorusu sorun.",
+    "nasil3": "Her görüşmede minimum 1 itirazı LAER ile yanıtlayın."
+  },
+  "Özellik - Avantaj/Fayda": {
+    "nasil1": "Ürün özellikleri için FAB (Özellik-Avantaj-Fayda) tablosu hazırlayın.",
+    "nasil2": "5 görüşmede FAB cümlesi kullanın: 'Bu özellik sayesinde, avantajı şu, sizin için faydası…'",
+    "nasil3": "FAB cümleleri için rol-oyunu yapın ve düzeltin."
+  },
+  "Tanıtım malzemesinin etkin kullanımı": {
+    "nasil1": "Tanıtım malzemesindeki kritik sayfaları işaretleyin.",
+    "nasil2": "Görüşme sırasında malzemeyi hekim ile birlikte inceleyin (pasif bırakmayın).",
+    "nasil3": "Görüşme sonunda materyal bırakın ve 'bu sayfaya bakmanızı öneririm' deyin."
+  },
+  "Olumlu davranışları destekleme": {
+    "nasil1": "Hekimin ilgisini/olumlu tepkisini gördüğünüzde 'harika bir nokta' gibi destekleyin.",
+    "nasil2": "Olumlu davranışı not edin ve sonraki ziyarette hatırlatın.",
+    "nasil3": "5 görüşmede minimum 2 olumlu davranış desteği yapın."
+  },
+  "Çoklu ürün çalışma becerisi": {
+    "nasil1": "Her ürün için 1 sayfalık özet kart hazırlayın (özellik-fayda-hedef hasta).",
+    "nasil2": "Görüşmede hekim ihtiyacına göre doğru ürünü önerin (tümünü anlatmayın).",
+    "nasil3": "Haftalık 3 görüşmede 2 farklı ürünü etkin tanıtın."
+  },
+  "Kısa tanıtım becerisi": {
+    "nasil1": "Ürün tanıtımını 2 dakikaya sığdıracak özet senaryo yazın.",
+    "nasil2": "Senaryo ile zamanlama pratiği yapın (2 dk timer).",
+    "nasil3": "5 görüşmede kısa tanıtım uygulayın ve süreyi kontrol edin."
+  },
+  "Kapanış teknikleri (Özetleme ve talepte bulunmak)": {
+    "nasil1": "Her görüşme sonunda 'Özetlersek…' diyerek 3 ana noktayı tekrar edin.",
+    "nasil2": "Net talep cümlesi kurun: 'Bu hafta 3 hastada denemenizi rica edebilir miyim?'",
+    "nasil3": "Varsayımsal kapanış kullanın: 'Hangi hasta grubunda başlamak istersiniz?'"
+  },
+  "Toplantı planlama ve sunum becerileri analizi / takibi": {
+    "nasil1": "Toplantı öncesi AMAÇ-İÇERİK-KAPANIŞ planı yapın.",
+    "nasil2": "Sunum sonrası self-değerlendirme formu doldurun (güçlü/zayıf yönler).",
+    "nasil3": "Manager ile aylık sunum feedback oturumu yapın."
+  },
+  "Sosyal kabul düzeyi": {
+    "nasil1": "Görüşme öncesinde hekimin ilgi alanlarını araştırın (sosyal medya/ortak bağlantı).",
+    "nasil2": "Kısa sohbet açacak ortak konu bulun (şehir, hobi, vaka).",
+    "nasil3": "5 görüşmede ilk 2 dakikayı raport kurma için ayırın."
+  },
+  "Eczane özel etkinlik planlama, gerçekleştirme ve takip": {
+    "nasil1": "Eczane ile mini etkinlik planı yapın (hasta bilgilendirme/stok kampanyası).",
+    "nasil2": "Etkinlik öncesi malzeme ve içerik hazırlayın.",
+    "nasil3": "Etkinlik sonrası satış/reçete etkisini ölçün ve rapor edin."
+  },
+  "Reçete analizi ve stok takibi": {
+    "nasil1": "Haftalık hekim reçete ve eczane stok tablosunu hazırlayın.",
+    "nasil2": "Stok sıfır (OOS) alarmı için eczane ile haftalık kontrol yapın.",
+    "nasil3": "Reçetesi düşen hekimleri tespit edin ve ziyaret önceliklendirin."
+  },
+  "Tablet ile tanıtım": {
+    "nasil1": "Tablet üzerinde sunumu akıcı geçirmek için prova yapın.",
+    "nasil2": "İnteraktif içerikleri (video/grafik) gösterirken hekim ile birlikte inceleyin.",
+    "nasil3": "5 görüşmede tablet sunumunu kullanın ve hekimden feedback alın."
+  }
+}

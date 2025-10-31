@@ -1,0 +1,11 @@
+{
+  "Ürün Bilgisi": ["10 soruluk bilgi testi (>=8/10)", "5 hekimde FAB cümlesi kaydı", "MSL mini sunum katılımı"],
+  "Medikal Bilgi": ["3 klinik çalışma özeti", "Kılavuzdan 2 öneri aktarımı", "Kanıtlı argüman kullanımı (>=3 görüşme)"],
+  "Rekabet Bilgisi": ["Rakip kıyas kartı", "LAER yanıt kütüphanesi", "5 ziyarette 'fark' cümlesi"],
+  "Bölge/Pazar Bilgisi": ["3 ay ısı haritası", "10 hekim gap listesi", "2 ek yüksek potansiyel ziyaret"],
+  "Hedefleme / Segmentasyon": ["A+ liste 15 hekim", "Haftalık 5 odak ziyaret gerçekleşmesi"],
+  "Ziyaret Öncesi Planlama ve Hazırlık": ["AMAÇ-MESAJ-DELİL kartı", "Açılış & kapanış cümlesi prova"],
+  "İtirazları anlama ve karşılama": ["LAER uygulaması >=3 vaka", "Teyit sorusu zorunlu"],
+  "Kapanış teknikleri": ["Her ziyarette 1 net talep", "Varsayımsal kapanış cümlesi"],
+  "Reçete analizi ve stok takibi": ["Haftalık reçete/stok tablosu", "OOS alarmı", "Düşen hekim analizi"]
+}
