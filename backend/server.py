@@ -597,6 +597,8 @@ async def kaydet_oturum(request: OturumKaydetRequest):
         tarih=request.tarih,
         doktor_sayisi=request.doktor_sayisi,
         eczane_sayisi=request.eczane_sayisi,
+        kocluk_tipi=request.kocluk_tipi,
+        yapilan_uygulamalar=request.yapilan_uygulamalar,
         ortak_yorum_1=request.ortak_yorum_1,
         ortak_yorum_2=request.ortak_yorum_2
     )
