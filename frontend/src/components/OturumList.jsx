@@ -3,8 +3,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, Users, FileText } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Calendar, Users, FileText, Trash2 } from "lucide-react";
 import axios from "axios";
+import { toast } from "sonner";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -12,6 +23,8 @@ export default function OturumList({ oturumlar, onRefresh }) {
   const [selectedOturum, setSelectedOturum] = useState(null);
   const [detay, setDetay] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [deletingOturum, setDeletingOturum] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const handleViewDetay = async (oturum) => {
     setSelectedOturum(oturum);
@@ -21,8 +34,29 @@ export default function OturumList({ oturumlar, onRefresh }) {
       setDetay(res.data);
     } catch (error) {
       console.error("Detay yüklenemedi", error);
+      toast.error("Detay yüklenirken hata oluştu");
     }
     setLoading(false);
+  };
+
+  const handleDeleteClick = (oturum, e) => {
+    e.stopPropagation();
+    setDeletingOturum(oturum);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingOturum) return;
+    
+    setDeleting(true);
+    try {
+      await axios.delete(`${API}/oturum/${deletingOturum.id}`);
+      toast.success("Koçluk oturumu silindi");
+      setDeletingOturum(null);
+      onRefresh();
+    } catch (error) {
+      toast.error("Silme işlemi sırasında hata oluştu");
+    }
+    setDeleting(false);
   };
 
   if (oturumlar.length === 0) {
@@ -61,7 +95,18 @@ export default function OturumList({ oturumlar, onRefresh }) {
                   </div>
                   <p className="text-gray-700 line-clamp-2">{oturum.ortak_yorum_1?.split('\n')[0] || "Yorum bulunmuyor"}</p>
                 </div>
-                <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 ml-4">Detay</Badge>
+                <div className="flex items-center gap-2 ml-4">
+                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">Detay</Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => handleDeleteClick(oturum, e)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    data-testid={`delete-oturum-btn-${index}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -155,6 +200,34 @@ export default function OturumList({ oturumlar, onRefresh }) {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingOturum} onOpenChange={(open) => !open && setDeletingOturum(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Koçluk Oturumunu Sil</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bu koçluk oturumunu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz ve oturuma ait tüm veriler (yetkinlikler, yorumlar, aksiyon planları) silinecektir.
+              <div className="mt-3 p-3 bg-gray-100 rounded">
+                <p className="text-sm font-medium text-gray-900">
+                  Tarih: {deletingOturum && new Date(deletingOturum.tarih).toLocaleDateString('tr-TR')}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="confirm-delete-btn"
+            >
+              {deleting ? "Siliniyor..." : "Sil"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
