@@ -127,6 +127,7 @@ class OrtakYorumRequest(BaseModel):
     eczane_sayisi: int
     kocluk_tipi: str
     yapilan_uygulamalar: List[str] = Field(default_factory=list)
+    basarili_basliklar: List[str] = Field(default_factory=list)  # Başarılı + Üstün Başarılı
     gelismeli_basliklar: List[dict]  # [{"alan": "Etkinlik", "baslik": "...", "gorsel_kodlari": []}]
 
 class GelisimPlaniRequest(BaseModel):
