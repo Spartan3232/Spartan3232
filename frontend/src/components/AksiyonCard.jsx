@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Trash2, Copy, Wand2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Trash2, Copy, Wand2, CheckCircle2, AlertTriangle, Plus, Save } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
