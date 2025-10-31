@@ -357,9 +357,7 @@ Her başlık için SMART gelişim planı oluştur."""
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"gelisim_plani_{request.mumessil_id}_{datetime.now(timezone.utc).timestamp()}",
-            system_message=system_prompt,
-            temperature=0.2,
-            response_format={"type": "json_schema", "json_schema": {"name": "gelisim_plani", "strict": True, "schema": response_schema}}
+            system_message=system_prompt
         ).with_model(LLM_PROVIDER, LLM_MODEL)
         
         message = UserMessage(text=user_text)
