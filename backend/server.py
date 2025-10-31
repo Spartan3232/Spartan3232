@@ -614,6 +614,11 @@ async def create_gelisim_plani(request: GelisimPlaniRequest):
 
 @api_router.post("/oturum")
 async def kaydet_oturum(request: OturumKaydetRequest):
+    # Validate final status
+    if request.status == "final":
+        if not request.aksiyonlar or len(request.aksiyonlar) == 0:
+            raise HTTPException(400, "Final durumda en az bir aksiyon planı gereklidir")
+    
     # Create session
     oturum = KoclukOturumu(
         mumessil_id=request.mumessil_id,
@@ -622,6 +627,7 @@ async def kaydet_oturum(request: OturumKaydetRequest):
         eczane_sayisi=request.eczane_sayisi,
         kocluk_tipi=request.kocluk_tipi,
         yapilan_uygulamalar=request.yapilan_uygulamalar,
+        status=request.status,
         ortak_yorum_1=request.ortak_yorum_1,
         ortak_yorum_2=request.ortak_yorum_2
     )
@@ -642,7 +648,7 @@ async def kaydet_oturum(request: OturumKaydetRequest):
         aksiyon = Aksiyon(oturum_id=oturum.id, **a)
         await db.aksiyon.insert_one(aksiyon.model_dump())
     
-    return {"success": True, "oturum_id": oturum.id}
+    return {"success": True, "oturum_id": oturum.id, "status": request.status}
 
 app.include_router(api_router)
 
