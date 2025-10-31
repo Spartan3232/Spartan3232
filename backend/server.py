@@ -517,6 +517,22 @@ async def save_mumessil(mumessil: Mumessil):
     await db.mumessil.update_one({"id": mumessil.id}, {"$set": doc}, upsert=True)
     return mumessil
 
+@api_router.delete("/oturum/{id}")
+async def delete_oturum(id: str):
+    """Delete coaching session and all related data"""
+    # Delete session
+    result = await db.kocluk_oturumu.delete_one({"id": id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Oturum bulunamadı")
+    
+    # Delete related data
+    await db.yetkinlik_puani.delete_many({"oturum_id": id})
+    await db.oturum_gorsel.delete_many({"oturum_id": id})
+    await db.ek_dosya.delete_many({"oturum_id": id})
+    await db.aksiyon.delete_many({"oturum_id": id})
+    
+    return {"success": True, "message": "Oturum ve ilişkili veriler silindi"}
+
 @api_router.get("/mumessil/{id}/oturumlar")
 async def get_mumessil_oturumlar(id: str):
     oturumlar = await db.kocluk_oturumu.find({"mumessil_id": id}, {"_id": 0}).sort("tarih", -1).to_list(100)
