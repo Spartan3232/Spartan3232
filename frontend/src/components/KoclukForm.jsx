@@ -119,6 +119,8 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
         tarih: new Date().toISOString().split('T')[0],
         doktor_sayisi: doktorSayisi,
         eczane_sayisi: eczaneSayisi,
+        kocluk_tipi: koclukTipi,
+        yapilan_uygulamalar: yapilanUygulamalar,
         gelismeli_basliklar: gelismeli
       });
       setOrtakYorum1(res.data.ortak_yorum);
