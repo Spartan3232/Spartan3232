@@ -81,6 +81,21 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
     fetchGorselKatalog();
   }, []);
 
+  // Auto-generate yorum when yapilan uygulamalar changes
+  useEffect(() => {
+    // Debounce: 2 saniye sonra otomatik yorum üret
+    if (yapilanUygulamalar.length === 0) return;
+    
+    const timer = setTimeout(() => {
+      const gelismeli = getGelismeliBasliklar();
+      if (gelismeli.length > 0) {
+        handleOrtakYorumUret(true); // silent mode (auto)
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [yapilanUygulamalar, koclukTipi]);
+
   const fetchGorselKatalog = async () => {
     try {
       const res = await axios.get(`${API}/gorsel-katalog`);
