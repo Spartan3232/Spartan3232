@@ -219,23 +219,40 @@ async def generate_ortak_yorum(request: OrtakYorumRequest) -> str:
     ).sort("tarih", -1).limit(3).to_list(3)
     
     gelismeli_list = [item["baslik"] for item in request.gelismeli_basliklar]
+    gorsel_kodlari = []
+    for item in request.gelismeli_basliklar:
+        if "gorsel_kodlari" in item and item["gorsel_kodlari"]:
+            gorsel_kodlari.extend(item["gorsel_kodlari"])
     
     system_prompt = """Sen ilaç sektöründe saha koçluğu uzmanısın. 
 Verilen bağlama göre maksimum 6 madde halinde yapıcı, somut ve kısa bir koç yorumu yaz. 
 Trend tekrarı varsa belirt; suçlayıcı dil ve belirsiz ifadeler kullanma. 
 Metni düz madde/paragraf olarak döndür (Markdown veya HTML kullanma)."""
     
-    user_text = f"""Mümessil: {mumessil['ad']} - {mumessil['bolge']}
-Tarih: {request.tarih}
-Doktor Sayısı: {request.doktor_sayisi}, Eczane Sayısı: {request.eczane_sayisi}
-
-Gelişmeli Başlıklar:
-{chr(10).join(['- ' + b for b in gelismeli_list])}
-
-Geçmiş 3 oturum trend özeti:
-{json.dumps(past_sessions, ensure_ascii=False, indent=2)}
-
-Yapıcı, somut ve maksimum 6 madde halinde koç yorumu yaz."""
+    # Build context
+    context_parts = [
+        f"Mümessil: {mumessil['ad']} - {mumessil['bolge']}",
+        f"Tarih: {request.tarih}",
+        f"Doktor Sayısı: {request.doktor_sayisi}, Eczane Sayısı: {request.eczane_sayisi}",
+        f"\nGelişmeli Başlıklar:\n" + "\n".join([f"- {b}" for b in gelismeli_list])
+    ]
+    
+    if gorsel_kodlari:
+        context_parts.append(f"\nBağlam görselleri: {', '.join(gorsel_kodlari)}")
+    
+    if past_sessions:
+        trend_text = []
+        for idx, session in enumerate(past_sessions, 1):
+            session_date = session.get('tarih', 'N/A')
+            yorum = session.get('ortak_yorum_1', '')
+            if yorum:
+                trend_text.append(f"Oturum {idx} ({session_date}): {yorum[:200]}")
+        if trend_text:
+            context_parts.append(f"\nGeçmiş 3 oturum trend özeti:\n" + "\n".join(trend_text))
+    
+    context_parts.append("\nYapıcı, somut ve maksimum 6 madde halinde koç yorumu yaz.")
+    
+    user_text = "\n".join(context_parts)
     
     try:
         chat = LlmChat(
@@ -248,16 +265,42 @@ Yapıcı, somut ve maksimum 6 madde halinde koç yorumu yaz."""
         message = UserMessage(text=user_text)
         response = await chat.send_message(message)
         
+        # Normalize response
+        normalized = response.strip()
+        normalized = re.sub(r'^```(json|markdown)?', '', normalized, flags=re.IGNORECASE)
+        normalized = re.sub(r'```$', '', normalized)
+        
+        # Extract bullet points
+        lines = []
+        for line in normalized.split('\n'):
+            line = line.strip()
+            if line and (line.startswith('-') or line.startswith('•') or line.startswith('*') or (line[0].isdigit() and line[1] in '.)')):
+                cleaned = re.sub(r'^(-|\*|\•|\d+[\.\)])\s*', '• ', line)
+                lines.append(cleaned)
+        
         # Guardrail: max 6 items
-        lines = [l.strip() for l in response.split('\n') if l.strip() and (l.strip().startswith('-') or l.strip().startswith('•') or l.strip()[0].isdigit())]
         if len(lines) > 6:
             lines = lines[:6]
         
-        return '\n'.join(lines) if lines else response[:500]
+        result = '\n'.join(lines) if lines else '• ' + normalized[:500]
+        
+        return result
     
     except Exception as e:
         logging.error(f"LLM-1 Error: {e}")
-        return "Ortak yorum üretilirken hata oluştu. Lütfen tekrar deneyin."
+        # Fallback
+        fallback_lines = [
+            '• "Gelişmeli" işaretlenen başlıklarda içerik derinliği ve kanıt kullanımı artırılmalı.',
+        ]
+        if any('Ürün Bilgisi' in b or 'Medikal Bilgi' in b for b in gelismeli_list):
+            fallback_lines.append('• Çekirdek ürün/medikal anlatımı + kanıt cümlesi standardize edilmelidir.')
+        if any('İtiraz' in b or 'Kapanış' in b for b in gelismeli_list):
+            fallback_lines.append('• İtirazlarda LAER, kapanışta varsayımsal cümle düzenli uygulanmalıdır.')
+        if request.doktor_sayisi or request.eczane_sayisi:
+            fallback_lines.append('• Aktivite notları CRM ile ilişkilendirilmeli, 1 hafta sonra sonuç kontrol edilmelidir.')
+        fallback_lines.append('• Bir sonraki oturumda kısa uygulama kanıtları (not/rol-oyunu/görsel) beklenmektedir.')
+        fallback_lines.append('• (Not) AI yanıtı alınamadı, fallback yorum kullanıldı.')
+        return '\n'.join(fallback_lines[:6])
 
 async def generate_gelisim_plani(request: GelisimPlaniRequest) -> List[dict]:
     """LLM-2: Gelişim Planı Generator with JSON strict mode"""
