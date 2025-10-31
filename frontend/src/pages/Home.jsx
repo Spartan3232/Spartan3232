@@ -5,8 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Search, User, MapPin, Phone, Mail } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Search, User, MapPin, Phone, Mail, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -17,6 +19,9 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [oturumCounts, setOturumCounts] = useState({});
+  const [editingMumessil, setEditingMumessil] = useState(null);
+  const [editForm, setEditForm] = useState({ ad: "", bolge: "", eposta: "", telefon: "" });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchMumessiller();
@@ -39,6 +44,38 @@ export default function Home() {
       toast.error("Mümessiller yüklenirken hata oluştu");
       setLoading(false);
     }
+  };
+
+  const handleEditClick = (mumessil, e) => {
+    e.stopPropagation();
+    setEditingMumessil(mumessil);
+    setEditForm({
+      ad: mumessil.ad,
+      bolge: mumessil.bolge,
+      eposta: mumessil.eposta,
+      telefon: mumessil.telefon
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editForm.ad.trim() || !editForm.bolge.trim()) {
+      toast.error("Ad ve bölge zorunludur");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await axios.post(`${API}/mumessil`, {
+        ...editingMumessil,
+        ...editForm
+      });
+      toast.success("Mümessil bilgileri güncellendi");
+      setEditingMumessil(null);
+      fetchMumessiller();
+    } catch (error) {
+      toast.error("Güncelleme sırasında hata oluştu");
+    }
+    setSaving(false);
   };
 
   const filteredMumessiller = mumessiller.filter(
@@ -144,17 +181,30 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Button */}
-                  <Button
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/tts/${mumessil.id}`);
-                    }}
-                    data-testid={`view-tts-btn-${mumessil.id}`}
-                  >
-                    TTS Sayfasına Git
-                  </Button>
+                  {/* Buttons */}
+                  <div className="w-full flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={(e) => handleEditClick(mumessil, e)}
+                      data-testid={`edit-mumessil-btn-${mumessil.id}`}
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Düzenle
+                    </Button>
+                    <Button
+                      className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/tts/${mumessil.id}`);
+                      }}
+                      data-testid={`view-tts-btn-${mumessil.id}`}
+                    >
+                      TTS
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -168,6 +218,83 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingMumessil} onOpenChange={(open) => !open && setEditingMumessil(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mümessil Bilgilerini Düzenle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="edit-ad" className="text-sm font-medium mb-2 flex items-center">
+                Ad Soyad <span className="text-red-500 ml-1">*</span>
+              </Label>
+              <Input
+                id="edit-ad"
+                value={editForm.ad}
+                onChange={(e) => setEditForm({ ...editForm, ad: e.target.value })}
+                placeholder="Örn: Ahmet Yılmaz"
+                data-testid="edit-ad-input"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-bolge" className="text-sm font-medium mb-2 flex items-center">
+                Bölge <span className="text-red-500 ml-1">*</span>
+              </Label>
+              <Input
+                id="edit-bolge"
+                value={editForm.bolge}
+                onChange={(e) => setEditForm({ ...editForm, bolge: e.target.value })}
+                placeholder="Örn: İstanbul Anadolu"
+                data-testid="edit-bolge-input"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-eposta" className="text-sm font-medium mb-2">
+                E-posta
+              </Label>
+              <Input
+                id="edit-eposta"
+                type="email"
+                value={editForm.eposta}
+                onChange={(e) => setEditForm({ ...editForm, eposta: e.target.value })}
+                placeholder="ornek@firma.com"
+                data-testid="edit-eposta-input"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-telefon" className="text-sm font-medium mb-2">
+                Telefon
+              </Label>
+              <Input
+                id="edit-telefon"
+                value={editForm.telefon}
+                onChange={(e) => setEditForm({ ...editForm, telefon: e.target.value })}
+                placeholder="+90 555 000 00 00"
+                data-testid="edit-telefon-input"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingMumessil(null)}
+              disabled={saving}
+            >
+              İptal
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={saving}
+              className="bg-blue-600 hover:bg-blue-700"
+              data-testid="save-edit-btn"
+            >
+              {saving ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
