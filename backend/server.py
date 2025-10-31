@@ -258,8 +258,7 @@ Metni düz madde/paragraf olarak döndür (Markdown veya HTML kullanma)."""
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
             session_id=f"ortak_yorum_{request.mumessil_id}_{datetime.now(timezone.utc).timestamp()}",
-            system_message=system_prompt,
-            temperature=0.2
+            system_message=system_prompt
         ).with_model(LLM_PROVIDER, LLM_MODEL)
         
         message = UserMessage(text=user_text)
