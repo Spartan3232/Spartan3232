@@ -158,7 +158,9 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
         edited: false
       }));
       setAksiyonlar(newAksiyonlar);
-      toast.success("Gelişim planları dolduruldu");
+      toast.success("Gelişim planları dolduruldu", {
+        description: "Artık Final olarak kaydedebilirsiniz."
+      });
     } catch (error) {
       toast.error(error.response?.data?.detail || "Gelişim planı üretilirken hata oluştu");
     }
