@@ -174,9 +174,14 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
       toast.error("Koçluk tipi seçilmelidir");
       return;
     }
+    
+    // Taslak modu: Aksiyon planı opsiyonel
+    const status = aksiyonlar.length === 0 ? "draft" : "final";
+    
     if (aksiyonlar.length === 0) {
-      toast.warning("En az bir aksiyon planı oluşturmalısınız");
-      return;
+      toast.warning("Aksiyon planı eklenmedi. Taslak olarak kaydedildi.", {
+        description: "'Gelişim hedefini ver' butonuyla plan oluşturabilirsiniz."
+      });
     }
 
     setLoading({ ...loading, kaydet: true });
@@ -201,6 +206,7 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
         eczane_sayisi: eczaneSayisi,
         kocluk_tipi: koclukTipi,
         yapilan_uygulamalar: yapilanUygulamalar,
+        status: status,
         ortak_yorum_1: ortakYorum1,
         ortak_yorum_2: ortakYorum2,
         yetkinlikler,
