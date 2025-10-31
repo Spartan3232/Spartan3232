@@ -124,6 +124,8 @@ class OrtakYorumRequest(BaseModel):
     tarih: str
     doktor_sayisi: int
     eczane_sayisi: int
+    kocluk_tipi: str
+    yapilan_uygulamalar: List[str] = Field(default_factory=list)
     gelismeli_basliklar: List[dict]  # [{"alan": "Etkinlik", "baslik": "...", "gorsel_kodlari": []}]
 
 class GelisimPlaniRequest(BaseModel):
