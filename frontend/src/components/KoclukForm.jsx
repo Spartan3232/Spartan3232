@@ -105,6 +105,21 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
     }
   };
 
+  const getBasariliBasliklar = () => {
+    const basarili = [];
+    Object.entries(etkinlikSeviyeleri).forEach(([baslik, seviye]) => {
+      if (seviye === "Başarılı" || seviye === "Üstün Başarılı") {
+        basarili.push(baslik);
+      }
+    });
+    Object.entries(verimlilikSeviyeleri).forEach(([baslik, seviye]) => {
+      if (seviye === "Başarılı" || seviye === "Üstün Başarılı") {
+        basarili.push(baslik);
+      }
+    });
+    return basarili;
+  };
+
   const getGelismeliBasliklar = () => {
     const gelismeli = [];
     Object.entries(etkinlikSeviyeleri).forEach(([baslik, seviye]) => {
