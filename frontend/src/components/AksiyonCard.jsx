@@ -306,3 +306,100 @@ function Field({ label, value, onChange, placeholder, refEl, counterLimit, state
     </div>
   );
 }
+
+// =============================
+// Ek Bileşenler: AksiyonList + Helper'lar
+// =============================
+
+export function AksiyonList({ plans, onChange, readOnly }) {
+  function updateAt(ix, next) {
+    onChange(plans.map((p, i) => (i === ix ? next : p)));
+  }
+  function deleteAt(ix) {
+    onChange(plans.filter((_, i) => i !== ix));
+  }
+  function copyAt(ix) {
+    const src = plans[ix];
+    onChange([...plans.slice(0, ix + 1), { ...src, ai_generated: true }, ...plans.slice(ix + 1)]);
+  }
+  function addEmpty() {
+    onChange([
+      ...plans,
+      {
+        baslik: "Yeni Plan",
+        aksiyon_konusu: "",
+        hedef: "",
+        olcum: "",
+        beklenen_sonuc: "",
+        nasil1: "",
+        nasil2: "",
+        nasil3: "",
+      },
+    ]);
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-gray-700">Aksiyon Planları ({plans.length})</h4>
+        {!readOnly && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addEmpty}
+            className="inline-flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> Plan ekle
+          </Button>
+        )}
+      </div>
+
+      {plans.length === 0 && (
+        <div className="rounded-xl border border-dashed p-6 text-sm text-gray-500 bg-gray-50">
+          Henüz plan yok. "Gelişim hedefini ver" ile otomatik oluşturabilir veya "Plan ekle" ile manuel başlatabilirsiniz.
+        </div>
+      )}
+
+      {plans.map((p, i) => (
+        <AksiyonCard
+          key={i}
+          aksiyon={p}
+          onChange={(next) => updateAt(i, next)}
+          onDelete={!readOnly ? () => deleteAt(i) : undefined}
+          testId={`aksiyon-card-${i}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// === Yardımcılar ===
+export function validatePlans(plans) {
+  const errors = [];
+  if (!plans.length) errors.push("En az bir plan gerekli.");
+  plans.forEach((p, ix) => {
+    const v = validate(p);
+    if (v.errors.length) {
+      errors.push(`Plan #${ix + 1}: ${v.errors[0]}`);
+    }
+  });
+  return { ok: errors.length === 0, errors };
+}
+
+export function buildAksiyonApiPayload({ oturumId, mumessilId, plans }) {
+  return {
+    oturum_id: oturumId,
+    mumessil_id: mumessilId,
+    aksiyonlar: plans.map((p) => ({
+      baslik: p.baslik,
+      aksiyon_konusu: p.aksiyon_konusu,
+      hedef: p.hedef,
+      olcum: p.olcum,
+      beklenen_sonuc: p.beklenen_sonuc,
+      nasil1: p.nasil1,
+      nasil2: p.nasil2 || null,
+      nasil3: p.nasil3 || null,
+    })),
+  };
+}
