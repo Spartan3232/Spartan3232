@@ -322,31 +322,75 @@ Metni düz madde listesi olarak döndür (• ile başla). Markdown veya HTML ku
         return '\n'.join(fallback_lines[:6])
 
 async def generate_gelisim_plani(request: GelisimPlaniRequest) -> List[dict]:
-    """LLM-2: Gelişim Planı Generator with JSON strict mode"""
+    """LLM-2: Gelişim Planı Generator - Tıbbi Mümessil Koçluğu"""
     mumessil = await db.mumessil.find_one({"id": request.mumessil_id}, {"_id": 0})
     gelismeli_list = [item["baslik"] for item in request.gelismeli_basliklar]
     
-    system_prompt = """Sen SMART hedef mimarısın. 
-'Gelişmeli' seçili her başlık için ayrı plan üret ve şu sırayı tek cümlelerle doldur:
-Aksiyon konusu → Hedef → Ne ile ölçülecek → Beklenen sonuç → Nasıl-1 → Nasıl-2 → Nasıl-3
+    system_prompt = """Sen 15 yıllık tecrübeli bir ilaç firması bölge müdürüsün ve ekibindeki tıbbi mümessillere SMART hedefler belirliyorsun.
 
-Hedef sayı + zaman + kapsam içersin; ölçüm bir veri kaynağı (CRM, test, reçete, stok, eğitim) içersin. 
-Belirsiz kelimeler kullanma (daha iyi, daha fazla, artırmak, geliştirmek).
-Her 'nasil' alanı bir fiille başlamalı (Planla, Hazırla, Uygula, Yaz, Ekle, vb).
+ROLÜN:
+- Mümessilin saha performansını ölçülebilir hedeflerle geliştirmek
+- Her "Gelişmeli" başlık için AYRI, somut, uygulanabilir bir aksiyon planı hazırlamak
+- Hedeflerin 14 gün içinde uygulanabilir olmasını sağlamak
 
-Sadece JSON döndür, başka açıklama yapma."""
+SMART HEDEF KURALLARI:
+1. HEDEF ALANI:
+   - Mutlaka SAYI + ZAMAN + KAPSAM içermeli
+   - Örnek: "14 gün içinde 5 hekim ziyaretinde ürün FAB cümlesini uygulamak"
+   - ❌ "Ürün bilgisini geliştirmek" (ne zaman? kaç defa? nerede?)
+   - ✅ "14 gün içinde 5 hekim ziyaretinde FAB cümlesini uygulamak"
+
+2. ÖLÇÜM ALANI:
+   - Mutlaka veri kaynağı belirt: CRM, test, reçete, stok, eğitim kayıtları, dashboard
+   - Örnek: "CRM'de 'FAB cümlesi kullanıldı' notu ile ≥5 kayıt"
+   - ❌ "Başarılı olup olmadığını göreceğiz"
+   - ✅ "CRM'de 'kapanış talebi' notu ile ≥5 kayıt"
+
+3. NASIL ALANLARI:
+   - Her biri FİİL ile başlamalı: Planla, Hazırla, Uygula, Yaz, Ekle, Seç, Rol-oyunu yap
+   - Kısa, tek cümle, somut adımlar
+   - Örnek: "Planla: Her ziyaret öncesi AMA-MESAJ-DELİL kartı doldur"
+
+4. BEKLENEN SONUÇ:
+   - İş etkisini yaz: "Hekim itirazlarında %30 azalma" veya "Kapanış oranında artış"
+   - Belirsiz kelimeler kullanma: "daha iyi", "daha fazla", "artırmak", "geliştirmek"
+
+SAHA DİLİ KULLAN:
+- "Detailing", "re-vizit", "kapanış", "FAB cümlesi", "itiraz yönetimi", "LAER"
+- Rakamlarla konuş: "5 hekim", "3 eczane", "10 dakika", "2 hafta"
+
+JSON ÇÖZÜMLEMESİ ZORUNLU:
+Şu şemaya AYNEN uy, başka bir şey ekleme:
+{
+  "planlar": [
+    {
+      "baslik": "...",
+      "aksiyon_konusu": "...",
+      "hedef": "...",
+      "olcum": "...",
+      "beklenen_sonuc": "...",
+      "nasil1": "...",
+      "nasil2": "...",
+      "nasil3": "..."
+    }
+  ]
+}
+
+Her alan TEK CÜMLE olmalı. JSON dışında hiçbir şey yazma."""
     
-    user_text = f"""Mümessil: {mumessil['ad']} - {mumessil['bolge']}
-Tarih: {request.tarih}
-Ortak Yorum:
-{request.ortak_yorum_1}
-
-Gelişmeli Başlıklar:
-{chr(10).join(['- ' + b for b in gelismeli_list])}
-
-Her başlık için SMART gelişim planı oluştur."""
+    # Build context
+    context_parts = [
+        f"Mümessil: {mumessil['ad']} - {mumessil['bolge']}",
+        f"Oturum Tarihi: {request.tarih}",
+        f"\nOrtak Koç Yorumu:\n{request.ortak_yorum_1}",
+        f"\nGelişmeli Başlıklar (her biri için AYRI plan oluştur):\n" + "\n".join([f"- {b}" for b in gelismeli_list])
+    ]
     
-    # JSON Schema for strict mode
+    context_parts.append("\n\nHer başlık için SMART aksiyon planı oluştur. JSON formatında döndür.")
+    
+    user_text = "\n".join(context_parts)
+    
+    # JSON Schema for validation
     response_schema = {
         "type": "object",
         "properties": {
@@ -364,13 +408,11 @@ Her başlık için SMART gelişim planı oluştur."""
                         "nasil2": {"type": "string"},
                         "nasil3": {"type": "string"}
                     },
-                    "required": ["baslik", "aksiyon_konusu", "hedef", "olcum", "beklenen_sonuc", "nasil1", "nasil2", "nasil3"],
-                    "additionalProperties": False
+                    "required": ["baslik", "aksiyon_konusu", "hedef", "olcum", "beklenen_sonuc", "nasil1", "nasil2", "nasil3"]
                 }
             }
         },
-        "required": ["planlar"],
-        "additionalProperties": False
+        "required": ["planlar"]
     }
     
     try:
@@ -384,33 +426,53 @@ Her başlık için SMART gelişim planı oluştur."""
         response = await chat.send_message(message)
         
         # Parse JSON
-        data = json.loads(response)
-        planlar = data.get("planlar", [])
+        try:
+            # Clean response
+            cleaned = response.strip()
+            cleaned = re.sub(r'^```(json|markdown)?', '', cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r'```$', '', cleaned)
+            
+            data = json.loads(cleaned)
+            planlar = data.get("planlar", [])
+            
+            if not planlar:
+                raise ValueError("No plans in response")
+            
+            # Validate and sanitize
+            validated_plans = []
+            for plan in planlar:
+                # Ensure single sentence
+                for key in ["aksiyon_konusu", "hedef", "olcum", "beklenen_sonuc", "nasil1", "nasil2", "nasil3"]:
+                    if key in plan and plan[key]:
+                        # Take first sentence only
+                        text = str(plan[key]).strip()
+                        match = re.match(r'^[^.!?]+[.!?]?', text)
+                        plan[key] = (match.group(0) if match else text).strip()
+                
+                # Basic validation
+                hedef = plan.get("hedef", "")
+                has_number = bool(re.search(r'\d+', hedef))
+                has_time = bool(re.search(r'(gün|hafta|ay|gün içinde|hafta içinde|ayın)', hedef, re.IGNORECASE))
+                
+                olcum = plan.get("olcum", "")
+                has_data_source = bool(re.search(r'(CRM|test|reçete|stok|eğitim|kayıt|dashboard)', olcum, re.IGNORECASE))
+                
+                nasil1 = plan.get("nasil1", "")
+                verb_pattern = r'^(Planla|Hazırla|Uygula|Yaz|Ekle|Seç|Rol-oyunu yap|Güncelle|İzle|Sor|Kur|Kaydet|Topla|İncele|Oluştur|Belirle|Tamamla|Tespit|Dinle|Kullan|Gözden|Kontrol|Bildir)'
+                has_verb = bool(re.search(verb_pattern, nasil1, re.IGNORECASE))
+                
+                if has_number and has_time and has_data_source and has_verb:
+                    validated_plans.append(plan)
+            
+            if validated_plans:
+                return validated_plans
+            else:
+                logging.warning("LLM-2: Plans failed validation, using fallback")
+                raise ValueError("Validation failed")
         
-        # Guardrails
-        validated_plans = []
-        for plan in planlar:
-            # SMART check
-            hedef = plan.get("hedef", "")
-            has_number = bool(re.search(r'\d+', hedef))
-            has_time = bool(re.search(r'(gün|hafta|ay|gün içinde|hafta içinde|ayın)', hedef, re.IGNORECASE))
-            
-            olcum = plan.get("olcum", "")
-            has_data_source = bool(re.search(r'(CRM|test|reçete|stok|eğitim|kayıt|dashboard)', olcum, re.IGNORECASE))
-            
-            # Check nasil starts with verb
-            nasil1 = plan.get("nasil1", "")
-            verb_pattern = r'^(Planla|Hazırla|Uygula|Yaz|Ekle|Seç|Rol-oyunu yap|Güncelle|İzle|Sor|Kur|Kaydet|Topla|İncele|Oluştur|Belirle|Tamamla|Tespit|Dinle|Kullan|Gözden|Kontrol|Bildir)'
-            
-            if has_number and has_time and has_data_source and re.search(verb_pattern, nasil1, re.IGNORECASE):
-                validated_plans.append(plan)
-        
-        if validated_plans:
-            return validated_plans
-        else:
-            # Retry once
-            logging.warning("LLM-2: First attempt failed validation, retrying...")
-            raise ValueError("Validation failed")
+        except (json.JSONDecodeError, ValueError) as parse_error:
+            logging.error(f"LLM-2: JSON parse error: {parse_error}, using fallback")
+            raise
     
     except Exception as e:
         logging.error(f"LLM-2 Error: {e}, using fallback")
@@ -425,13 +487,13 @@ Her başlık için SMART gelişim planı oluştur."""
             
             fallback_plans.append({
                 "baslik": baslik,
-                "aksiyon_konusu": f"{baslik} alanında yetkinlik geliştirme",
-                "hedef": f"{baslik} için 14 gün içinde 5 görüşmede uygulanmış olsun",
+                "aksiyon_konusu": f"{baslik} alanında sahada standardize uygulamayı devreye al",
+                "hedef": f"14 gün içinde 5 görüşmede {baslik.lower()} uygulanmış olsun",
                 "olcum": f"CRM'de '{baslik}' notu işaretli ≥ 5 kayıt" if not metrics else metrics[0],
-                "beklenen_sonuc": "Görüşme kalitesinde artış ve itirazın azalması",
-                "nasil1": template.get("nasil1", "İlgili eğitim materyalini inceleyin ve özet çıkarın."),
-                "nasil2": template.get("nasil2", "Rol-oyunu ile pratik yapın ve feedback alın."),
-                "nasil3": template.get("nasil3", "İlk 3 görüşmede uygulayın ve sonuçları kaydedin.")
+                "beklenen_sonuc": "Görüşme kalitesinde artış ve hekim memnuniyetinde iyileşme",
+                "nasil1": template.get("nasil1", "Hazırla: İlgili eğitim materyalini incele ve özet çıkar"),
+                "nasil2": template.get("nasil2", "Uygula: Rol-oyunu ile pratik yap ve feedback al"),
+                "nasil3": template.get("nasil3", "İzle: İlk 3 görüşmede uygula ve sonuçları CRM'e kaydet")
             })
         
         return fallback_plans
