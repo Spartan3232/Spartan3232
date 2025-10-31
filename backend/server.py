@@ -214,7 +214,7 @@ def load_metric_catalog():
         return json.load(f)
 
 async def generate_ortak_yorum(request: OrtakYorumRequest) -> str:
-    """LLM-1: Ortak Yorum Generator"""
+    """LLM-1: Ortak Yorum Generator - Koçluk Tipi ve Uygulamalar Dahil"""
     # Build context
     mumessil = await db.mumessil.find_one({"id": request.mumessil_id}, {"_id": 0})
     
@@ -238,18 +238,26 @@ ROLÜN VE YAKLAŞIMIN:
 - Yapıcı ama net geribildirim veriyorsun - başarıyı överken gelişim alanlarını da açık söylüyorsun
 - Her yorumunda somut, uygulanabilir aksiyonlara odaklanıyorsun
 
+KOÇLUK TİPİ VE YAPILAN UYGULAMALARI DEĞERLENDİR:
+- Koçluk tipine göre yorum yap (Saha Koçluğu ise saha örnekleri, Ofis Koçluğu ise ofis ortamı örnekleri ver)
+- Yapılan uygulamaları (Eğitim, İkili ziyaret, İş değerlendirmesi, Koçluk, Mentorluk) yorumda belirt
+- Hangi uygulamanın etkili olduğunu veya daha fazla kullanılması gerektiğini söyle
+- ÖRNEK: "Eğitim ve İkili ziyaret yaptık ama İş değerlendirmesi eksik kaldı - önümüzdeki oturumda mutlaka ekleyelim"
+- ÖRNEK: "Saha koçluğunda İkili ziyaret etkili oldu; şimdi Mentorluk ile pekiştirelim"
+
 YORUM YAZARKEN:
 1. Maksimum 5-6 madde yaz (daha fazla değil, odaklanmayı kaybetmesin)
 2. Her madde kısa, net ve sahaya yönelik olsun
-3. Eğer aynı konular tekrarlıyorsa bunu belirt: "Bu üçüncü oturumda X konusunda hala gelişim bekliyoruz"
-4. Rakamlarla konuş: "5 hekim ziyareti", "3 itiraz senaryosu", "günde 2 eczane"
-5. Suçlama değil, çözüm öner: "X yetersiz" yerine "X'i geliştirmek için şunu yap"
-6. Saha jargonu kullan: "kapanış", "itiraz yönetimi", "FAB cümlesi", "re-vizit", "detailing"
+3. Koçluk tipi ve yapılan uygulamaları MUTLAKA ilk maddede belirt
+4. Eğer aynı konular tekrarlıyorsa bunu belirt: "Bu üçüncü oturumda X konusunda hala gelişim bekliyoruz"
+5. Rakamlarla konuş: "5 hekim ziyareti", "3 itiraz senaryosu", "günde 2 eczane"
+6. Suçlama değil, çözüm öner: "X yetersiz" yerine "X'i geliştirmek için şunu yap"
+7. Saha jargonu kullan: "kapanış", "itiraz yönetimi", "FAB cümlesi", "re-vizit", "detailing"
 
 ÖRNEKLERİ KULLAN:
-✓ "Hekim ziyaretlerinde FAB cümlesini kurmakta zorlanıyorsun. Önce özellik, sonra fark, en son hastaya faydası - bu sırayı ezberle."
+✓ "Saha koçluğunda İkili ziyaret ve Koçluk uygulaması yaptık - hekim ziyaretlerinde FAB cümlesini kurmakta zorlanıyorsun. Önce özellik, sonra fark, en son hastaya faydası."
+✓ "Ofis koçluğunda Eğitim ve İş değerlendirmesi gerçekleştirdik. Ürün bilgisinde teorik olarak iyisin ama sahada uygulamaya dökemiyorsun - İkili ziyaret ile pratik yapalım."
 ✓ "Kapanış tekniğin pasif kalmış. Her ziyarette mutlaka bir sonraki adım belirt: 'Önümüzdeki hafta kontrol edelim mi?' gibi."
-✓ "Eczanede stok takibi yapıyorsun ama re-vizit planlamıyorsun. Stok bittiğinde haber vermelerini iste."
 ✗ "İletişim becerilerini geliştirmelisin" (çok genel, anlamsız)
 ✗ "Daha iyi yapmalısın" (nasıl? ne demek?)
 
@@ -259,9 +267,16 @@ Metni düz madde listesi olarak döndür (• ile başla). Markdown veya HTML ku
     context_parts = [
         f"Mümessil: {mumessil['ad']} - {mumessil['bolge']}",
         f"Tarih: {request.tarih}",
-        f"Doktor Sayısı: {request.doktor_sayisi}, Eczane Sayısı: {request.eczane_sayisi}",
-        f"\nGelişmeli Başlıklar:\n" + "\n".join([f"- {b}" for b in gelismeli_list])
+        f"Koçluk Tipi: {request.kocluk_tipi}",
     ]
+    
+    if request.yapilan_uygulamalar:
+        context_parts.append(f"Yapılan Uygulamalar: {', '.join(request.yapilan_uygulamalar)}")
+    else:
+        context_parts.append("Yapılan Uygulamalar: Belirtilmedi")
+    
+    context_parts.append(f"Doktor Sayısı: {request.doktor_sayisi}, Eczane Sayısı: {request.eczane_sayisi}")
+    context_parts.append(f"\nGelişmeli Başlıklar:\n" + "\n".join([f"- {b}" for b in gelismeli_list]))
     
     if gorsel_kodlari:
         context_parts.append(f"\nBağlam görselleri: {', '.join(gorsel_kodlari)}")
@@ -276,7 +291,7 @@ Metni düz madde listesi olarak döndür (• ile başla). Markdown veya HTML ku
         if trend_text:
             context_parts.append(f"\nGeçmiş 3 oturum trend özeti:\n" + "\n".join(trend_text))
     
-    context_parts.append("\nYapıcı, somut ve maksimum 6 madde halinde koç yorumu yaz.")
+    context_parts.append("\n\nKoçluk tipine ve yapılan uygulamalara göre yapıcı, somut ve maksimum 6 madde halinde koç yorumu yaz. İlk maddede mutlaka koçluk tipi ve yapılan uygulamalardan bahset.")
     
     user_text = "\n".join(context_parts)
     
@@ -315,7 +330,7 @@ Metni düz madde listesi olarak döndür (• ile başla). Markdown veya HTML ku
         logging.error(f"LLM-1 Error: {e}")
         # Fallback
         fallback_lines = [
-            '• "Gelişmeli" işaretlenen başlıklarda içerik derinliği ve kanıt kullanımı artırılmalı.',
+            f'• {request.kocluk_tipi} gerçekleştirdik' + (f" ({', '.join(request.yapilan_uygulamalar)})" if request.yapilan_uygulamalar else "") + '. "Gelişmeli" işaretlenen başlıklarda içerik derinliği ve kanıt kullanımı artırılmalı.',
         ]
         if any('Ürün Bilgisi' in b or 'Medikal Bilgi' in b for b in gelismeli_list):
             fallback_lines.append('• Çekirdek ürün/medikal anlatımı + kanıt cümlesi standardize edilmelidir.')
@@ -323,7 +338,11 @@ Metni düz madde listesi olarak döndür (• ile başla). Markdown veya HTML ku
             fallback_lines.append('• İtirazlarda LAER, kapanışta varsayımsal cümle düzenli uygulanmalıdır.')
         if request.doktor_sayisi or request.eczane_sayisi:
             fallback_lines.append('• Aktivite notları CRM ile ilişkilendirilmeli, 1 hafta sonra sonuç kontrol edilmelidir.')
-        fallback_lines.append('• Bir sonraki oturumda kısa uygulama kanıtları (not/rol-oyunu/görsel) beklenmektedir.')
+        
+        # Uygulama önerileri
+        if not request.yapilan_uygulamalar or len(request.yapilan_uygulamalar) < 2:
+            fallback_lines.append('• Bir sonraki oturumda İkili ziyaret ve İş değerlendirmesi eklenmelidir.')
+        
         fallback_lines.append('• (Not) AI yanıtı alınamadı, fallback yorum kullanıldı.')
         return '\n'.join(fallback_lines[:6])
 
