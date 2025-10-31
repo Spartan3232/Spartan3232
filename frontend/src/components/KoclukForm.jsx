@@ -45,9 +45,19 @@ const VERIMLILIK_BASLIKLAR = [
   "Tablet ile tanıtım"
 ];
 
+const YAPILAN_UYGULAMALAR = [
+  "Eğitim",
+  "İkili ziyaret",
+  "İş değerlendirmesi",
+  "Koçluk",
+  "Mentorluk"
+];
+
 export default function KoclukForm({ mumessilId, onSuccess }) {
   const [doktorSayisi, setDoktorSayisi] = useState(0);
   const [eczaneSayisi, setEczaneSayisi] = useState(0);
+  const [koclukTipi, setKoclukTipi] = useState("Saha Koçluğu");
+  const [yapilanUygulamalar, setYapilanUygulamalar] = useState([]);
   const [etkinlikSeviyeleri, setEtkinlikSeviyeleri] = useState({});
   const [verimlilikSeviyeleri, setVerimlilikSeviyeleri] = useState({});
   const [ortakYorum1, setOrtakYorum1] = useState("");
@@ -57,6 +67,14 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
 
   const [gorselKatalog, setGorselKatalog] = useState([]);
   const [selectedGorseller, setSelectedGorseller] = useState({});
+
+  const toggleUygulama = (uygulama) => {
+    if (yapilanUygulamalar.includes(uygulama)) {
+      setYapilanUygulamalar(yapilanUygulamalar.filter(u => u !== uygulama));
+    } else {
+      setYapilanUygulamalar([...yapilanUygulamalar, uygulama]);
+    }
+  };
 
   useEffect(() => {
     fetchGorselKatalog();
