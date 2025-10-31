@@ -120,10 +120,12 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
     return gelismeli;
   };
 
-  const handleOrtakYorumUret = async () => {
+  const handleOrtakYorumUret = async (silent = false) => {
     const gelismeli = getGelismeliBasliklar();
     if (gelismeli.length === 0) {
-      toast.warning("En az bir başlık 'Gelişmeli' olmalı");
+      if (!silent) {
+        toast.warning("En az bir başlık 'Gelişmeli' olmalı");
+      }
       return;
     }
 
@@ -139,9 +141,13 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
         gelismeli_basliklar: gelismeli
       });
       setOrtakYorum1(res.data.ortak_yorum);
-      toast.success("Ortak yorum eklendi");
+      if (!silent) {
+        toast.success("Ortak yorum eklendi");
+      }
     } catch (error) {
-      toast.error("Ortak yorum üretilirken hata oluştu");
+      if (!silent) {
+        toast.error("Ortak yorum üretilirken hata oluştu");
+      }
     }
     setLoading({ ...loading, yorum: false });
   };
