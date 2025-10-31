@@ -167,6 +167,10 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
       toast.error("Doktor/Eczane sayısı negatif olamaz");
       return;
     }
+    if (!koclukTipi) {
+      toast.error("Koçluk tipi seçilmelidir");
+      return;
+    }
     if (aksiyonlar.length === 0) {
       toast.warning("En az bir aksiyon planı oluşturmalısınız");
       return;
@@ -192,6 +196,8 @@ export default function KoclukForm({ mumessilId, onSuccess }) {
         tarih: new Date().toISOString().split('T')[0],
         doktor_sayisi: doktorSayisi,
         eczane_sayisi: eczaneSayisi,
+        kocluk_tipi: koclukTipi,
+        yapilan_uygulamalar: yapilanUygulamalar,
         ortak_yorum_1: ortakYorum1,
         ortak_yorum_2: ortakYorum2,
         yetkinlikler,
