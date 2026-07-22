@@ -1,0 +1,23 @@
+<div class="loading" id="loading"><div class="loading-box"><div class="loader"></div><div class="loading-title">PharmaInsight hazırlanıyor</div><div class="loading-sub">Bölge, temsilci, brick ve saha verileri indeksleniyor</div></div></div>
+<div class="app">
+  <div class="mobile-overlay" id="mobileOverlay" onclick="closeSidebar()"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="logo">PI</div><div><div class="brand-title">PharmaInsight<br>Enterprise</div><div class="brand-sub">G3 Akdeniz</div></div></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-status" id="sideStatus"></div>
+    <div class="version">v6.0 · 360 Workspace</div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <button class="menu-btn" onclick="openSidebar()">☰</button>
+      <div class="top-search"><svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input id="globalSearch" placeholder="Temsilci, brick, müşteri veya ürün ara..." onkeydown="if(event.key==='Enter')runGlobalSearch()"><span class="kbd">Enter</span></div>
+      <div class="top-spacer"></div>
+      <div class="period-group"><span class="period-tag">Saha Ayı</span><select class="period-select" id="periodSelect" onchange="changePeriod(this.value)"></select></div><div class="period-group"><span class="period-tag">IMS Dönemi</span><select class="period-select" id="imsPeriodSelect" onchange="changeIMSPeriod(this.value)"></select></div>
+      <button class="primary-btn" onclick="openLocalInsight()">✦ Yönetici Analizi</button>
+      <div class="userbox"><div class="useravatar">CT</div><div><div class="username">Cengiz Turan</div><div class="userrole">Bölge Müdürü</div></div></div>
+    </header>
+    <div class="content" id="content"></div>
+  </main>
+</div>
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
