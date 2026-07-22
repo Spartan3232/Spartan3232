@@ -1,0 +1,13 @@
+{
+  "name": "pharmainsight-command-center",
+  "version": "6.1.0",
+  "private": true,
+  "description": "PharmaInsight Command Center — G3 Akdeniz bölge müdürü saha yönetim uygulaması. Modüler kaynaktan (src/) tek dosyalık dist/PharmaInsight_Command_Center.html üretir.",
+  "scripts": {
+    "build": "node tools/build.js",
+    "test": "node tests/smoke.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
