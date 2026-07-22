@@ -111,7 +111,6 @@ const CoachingEngine = () => {
       setLoading(false);
     };
     init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Taslağı tarayıcıda sakla (sayfa yeniden açıldığında korunması için)
@@ -127,7 +126,6 @@ const CoachingEngine = () => {
     listSessions(user.id, user.role, session.representative.id)
       .then(list => setPreviousSessions(list.filter(s => s.id !== session.id)))
       .catch(err => console.error('Previous sessions fetch error:', err));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.representative?.id]);
 
   const patchSession = useCallback((patch) => setSession(prev => ({ ...prev, ...patch })), []);

@@ -247,7 +247,7 @@ const CallForm = ({ initial, onSave, onCancel }) => {
         <button
           type="button"
           disabled={!canSave}
-          onClick={() => onSave(call)}
+          onClick={() => onSave({ ...call, durationMinutes: call.durationMinutes === '' ? null : call.durationMinutes })}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
         >
           Görüşmeyi Kaydet

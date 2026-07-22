@@ -1,21 +1,26 @@
 import axios from 'axios';
 import { API } from '../../App';
 
-const base = `${API}/coaching`;
+// base() is computed lazily (not at module load) because App.js imports
+// CoachingEngine, which imports this module, which imports API back from
+// App.js — a circular import. Reading API at module-evaluation time hits it
+// mid-TDZ ("Cannot access 'API' before initialization"); reading it inside
+// each function call is safe since App.js has finished evaluating by then.
+const base = () => `${API}/coaching`;
 
-export const fetchCompetencies = () => axios.get(`${base}/competencies`).then(r => r.data);
-export const fetchGoalTemplates = () => axios.get(`${base}/goal-templates`).then(r => r.data);
-export const fetchContextMetrics = () => axios.get(`${base}/context-metrics`).then(r => r.data);
-export const checkLanguage = (text) => axios.post(`${base}/language-check`, { text }).then(r => r.data);
+export const fetchCompetencies = () => axios.get(`${base()}/competencies`).then(r => r.data);
+export const fetchGoalTemplates = () => axios.get(`${base()}/goal-templates`).then(r => r.data);
+export const fetchContextMetrics = () => axios.get(`${base()}/context-metrics`).then(r => r.data);
+export const checkLanguage = (text) => axios.post(`${base()}/language-check`, { text }).then(r => r.data);
 
-export const createSession = (payload) => axios.post(`${base}/sessions`, payload).then(r => r.data);
-export const getSession = (id) => axios.get(`${base}/sessions/${id}`).then(r => r.data);
+export const createSession = (payload) => axios.post(`${base()}/sessions`, payload).then(r => r.data);
+export const getSession = (id) => axios.get(`${base()}/sessions/${id}`).then(r => r.data);
 export const listSessions = (viewer_id, viewer_role, representative_id) =>
-  axios.get(`${base}/sessions`, { params: { viewer_id, viewer_role, representative_id } }).then(r => r.data);
-export const updateSession = (id, patch) => axios.put(`${base}/sessions/${id}`, patch).then(r => r.data);
-export const completeSession = (id, payload) => axios.post(`${base}/sessions/${id}/complete`, payload);
-export const fetchComment = (id) => axios.get(`${base}/sessions/${id}/comment`).then(r => r.data);
-export const csvExportUrl = (id) => `${base}/sessions/${id}/export.csv`;
+  axios.get(`${base()}/sessions`, { params: { viewer_id, viewer_role, representative_id } }).then(r => r.data);
+export const updateSession = (id, patch) => axios.put(`${base()}/sessions/${id}`, patch).then(r => r.data);
+export const completeSession = (id, payload) => axios.post(`${base()}/sessions/${id}/complete`, payload);
+export const fetchComment = (id) => axios.get(`${base()}/sessions/${id}/comment`).then(r => r.data);
+export const csvExportUrl = (id) => `${base()}/sessions/${id}/export.csv`;
 
 export const fetchUsers = () => axios.get(`${API}/users`).then(r => r.data);
 

@@ -47,7 +47,6 @@ const Step1Setup = ({ setup, onChange, users, currentUser, competencies, previou
     if (!setup.manager?.name && currentUser?.role === 'coach') {
       setManagerName(currentUser.name);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
 
   return (
