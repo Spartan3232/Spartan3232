@@ -76,3 +76,5 @@ function displayRep(rn){return IDX.display.get(norm(rn))||(norm(rn)==='BOS'?'BoÅ
 function periodVisits(list){if(STATE.period==='all')return list||[];return (list||[]).filter(x=>String(x.date).startsWith(STATE.period))}
 function periodOrders(list){if(STATE.period==='all')return list||[];return (list||[]).filter(x=>String(x.date).startsWith(STATE.period))}
 function visitCounts(repNorm){const key='vc|'+repNorm+'|'+STATE.period;if(IDX.cache.has(key))return IDX.cache.get(key);const m=new Map();for(const v of periodVisits(IDX.visitByRep.get(repNorm)||[])){const k=norm(v.customer);m.set(k,(m.get(k)||0)+1)}IDX.cache.set(key,m);return m}
+
+function mergeUnique(oldRows,newRows,keyFn){const m=new Map();for(const x of [...(oldRows||[]),...(newRows||[])])m.set(keyFn(x),x);return [...m.values()]}

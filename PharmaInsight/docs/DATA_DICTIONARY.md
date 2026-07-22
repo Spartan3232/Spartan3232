@@ -16,7 +16,7 @@ alan güncellenir (`src/data/index.js` → `handleUpload`).
 | `DATA.ziyaret` | Ziyaret Detay | `[{rep, date, specialty, customer, planned}]`, tekilleştirilmiş | `src/data/ziyaret-parser.js` (`mergeUnique`) |
 | `DATA.havuz` | Havuz Raporu | `[{specialty, institution, il, brick, customer, selected}]` | `src/data/havuz-parser.js` |
 | `DATA.siparis` | Sipariş Detay | `[{rep, date, status, pharmacy, brick, product, qty}]`, tekilleştirilmiş | `src/data/siparis-parser.js` |
-| `DATA.actions` | Kullanıcı girişi (UI) | `{ [actionKey]: {status, due, owner, targetValue, actualValue, note, customAction, updated} }` | `src/app/legacy-app.js` (`actionRecord`) |
+| `DATA.actions` | Kullanıcı girişi (UI) | `{ [actionKey]: {status, due, owner, targetValue, actualValue, note, customAction, updated} }` | `src/analytics/region-analysis.js` (`actionRecord`) |
 | `DATA.manualActions` | Sistem + kullanıcı | `[{type, subject, owner, impact, score, reason, action, target, id, color}]` | `decisionData()` + GROW takip kayıtları |
 | `DATA.snapshots` | Dönem arşivi | uygulama içi | — |
 | `DATA.generatedAt` | Son güncelleme zaman damgası | ISO string | `handleUpload` |

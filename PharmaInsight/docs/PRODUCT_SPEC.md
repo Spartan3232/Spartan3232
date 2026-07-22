@@ -52,31 +52,47 @@ fonksiyonlar `null`/`'—'` döner (`fmtPct`, `fmtTL`) — sayı uydurulmaz. Yen
 KPI eklerken bu deseni koru: kaynağı belirsizse veya veri eksikse "Veri yok"
 göster, asla varsayılan/rastgele bir sayı üretme.
 
-## Modülerleştirme durumu (Faz 1)
+## Modülerleştirme durumu (Faz 1 — tamamlandı)
 
-`src/` altında ayrıştırılmış olanlar:
+`src/` tamamen ayrıştırılmıştır; tek parça `app/legacy-app.js` artık yoktur.
+Not: Aşağıdaki `pages/*` listesi, ilk taslakta öngörülen 6 sayfalık iskeletten
+(dashboard/representative360/brick360/customer360/grow/reports) farklıdır —
+gerçek uygulamanın 13 sayfası ortaya çıkınca dosya adları buna göre uyarlandı;
+plana kör uymak yerine koda uyan bir yapı tercih edildi.
+
 - `state.js` — ICONS/navItems, `DATA`/`STATE`/`STD`/`FREQ`/`MAX_SELECTION_TARGET`,
-  temel yardımcılar (`norm`, `esc`, `fmtTL`, `fmtPct`, ...), `reindex()`.
+  temel yardımcılar (`norm`, `esc`, `escAttr`, `fmtTL`, `fmtPct`, ...),
+  `reindex()`, `mergeUnique()`.
 - `data/shared.js`, `data/ims-parser.js`, `data/seleksiyon-parser.js`,
   `data/ziyaret-parser.js`, `data/havuz-parser.js`, `data/siparis-parser.js`,
-  `data/index.js` — Excel içe aktarma tamamen ayrıştırıldı.
-- `pages/grow.js` — GROW v5 yetkinlik katmanı (`growV5Script`, orijinal dosyada
-  ana render fonksiyonlarını ezen ikinci katman).
-- `app/pi-v6-workspace-layer.js` — v6 viewport-first UI katmanı (`piV6Script`,
-  birden çok sayfanın render fonksiyonunu ezen üçüncü/son katman).
-- `app/legacy-app.js` — **henüz tam ayrıştırılmamış** kalan blok: analytics
-  (region/representative/brick/customer metrikleri, `decisionData`),
-  pages (dashboard/rep360/brick360/customer360/reports render fonksiyonları),
-  exports (CSV/print/downloadUpdatedHtml) ve nav/app iskeleti hâlâ bu tek
-  dosyada bir arada. Sonraki artımlı adım: bu dosyayı
-  `analytics/*.js` + `pages/*.js` (dashboard, representative360, brick360,
-  customer360, reports) + `exports/*.js` (csv, print, html-report) +
-  `app.js` (nav/bootstrap) olarak bölmek — fonksiyon fonksiyon, her adımdan
-  sonra `npm test` yeşil kalacak şekilde.
+  `data/index.js` — Excel içe aktarma.
+- `analytics/representative-analysis.js`, `brick-analysis.js`,
+  `region-analysis.js` (Aksiyon Merkezi + veri kalitesi), `customer-analysis.js`,
+  `forecast.js` (run-rate + senaryo), `coaching.js` (GROW veri modeli — bkz. not).
+- `pages/dashboard.js`, `decisions.js`, `representative360.js`, `brick360.js`,
+  `customer360.js`, `products.js`, `plan.js`, `forecast.js`, `archive.js`,
+  `quality.js`, `upload.js`, `reports.js` — sayfa render fonksiyonları.
+  `pages/grow.js` ayrıdır (bkz. aşağıdaki not).
+- `app.js` — nav/routing (`go`, `renderNav`, `renderPage`), modal, genel arama,
+  açılış bootstrap'ı.
+- `exports/csv.js`, `print.js`, `html-report.js` — tüm dışa aktarma fonksiyonları.
 
-Üç katmanlı "ezme" (override) mimarisi korunmuştur: orijinal dosyada
-`renderGrow`/`growSave`/`openRep` gibi fonksiyonlar önce ana katmanda
-tanımlanıp sonra GROW v5 ve piV6 katmanlarında yeniden atanıyordu — bu üç
-katman `src/`'de de aynı sırayla (state → data → app/legacy-app →
-pages/grow → app/pi-v6-workspace-layer) birleştirilir, davranış birebir
-korunur (bkz. Faz 0 denetim raporu, Orta öncelik #2).
+**Not — üç katmanlı "ezme" (override) mimarisi korunmuştur:** orijinal v6
+dosyasında `renderGrow`/`growSave`/`openRep` gibi bazı fonksiyonlar önce ana
+katmanda tanımlanıp sonra GROW v5 ve piV6 katmanlarında yeniden atanıyordu.
+Bu yüzden `analytics/coaching.js` içindeki `renderGrow`/`growSave`/`growLoad`
+TABAN (gölgelenmiş/ölü) sürümdür — çalışma zamanında kazanan asıl sürüm
+`pages/grow.js` (`growV5Script`) içindedir; `openRep`/`openBrick`/`closeModal`
+gibi birkaç fonksiyon da benzer şekilde `app/pi-v6-workspace-layer.js`
+(`piV6Script`) tarafından ezilir. Üç katman `tools/build.js`'de aynı sırayla
+(state → data → analytics → pages → app → exports → pages/grow.js →
+app/pi-v6-workspace-layer.js) birleştirilir; JS fonksiyon bildirimleri aynı
+`<script>` bloğu içinde hoisted olduğundan hangi dosyada durdukları davranışı
+etkilemez — yalnızca script TAG'leri arasındaki sıra (main → growV5Script →
+piV6Script) önemlidir ve bu sıra korunmuştur. Playwright ile doğrulandı: tüm
+sayfalar ayrıştırma sonrası da sıfır konsol hatasıyla, önceki davranışla
+birebir aynı şekilde çalışıyor.
+
+Kalan bilinen borç: `analytics/coaching.js` içindeki gölgelenmiş taban GROW
+fonksiyonları (dead code) hâlâ dosyada duruyor — silinmeleri davranışı
+değiştirmez ama netlik için ileride temizlenebilir.

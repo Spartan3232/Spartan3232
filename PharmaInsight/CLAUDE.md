@@ -31,7 +31,14 @@ npm test        # build'i çalıştırır + statik regresyon kontrolleri (ölü 
 
 Yeni bir `src/` dosyası eklediğinde `tools/build.js`'deki birleştirme sırasına
 da eklemeyi unutma — build script dosyaları otomatik keşfetmez, sırayı sen
-kontrol edersin (bağımlılık sırası önemli: `state.js` → `data/*` → `app/*` → `pages/*`).
+kontrol edersin. Ana script bloğu sırası: `state.js` → `data/*` → `analytics/*`
+→ `pages/*` → `app.js` → `exports/*`; bunlar tek bir `<script>` içinde
+birleştiği için (aynı global scope, fonksiyon hoisting) aralarındaki sıra
+davranışı etkilemez. Asıl önemli olan ayrı `<script>` etiketleri arasındaki
+sıra: ana blok → `pages/grow.js` (`growV5Script`) → `app/pi-v6-workspace-layer.js`
+(`piV6Script`) — bu üçü aynı isimli bazı fonksiyonları (`renderGrow`,
+`growSave`, `openRep` gibi) art arda ezer, son yüklenen kazanır. Bu sırayı
+bozma.
 
 `fixtures/real-data.json` **gerçek** iş verisidir (gerçek temsilci/doktor adları,
 gerçek satış rakamları) — bilinçli olarak bu depoya işlenmiştir (bkz. proje geçmişi).
