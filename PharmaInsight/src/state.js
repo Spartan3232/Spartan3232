@@ -26,6 +26,12 @@ const SPEC={'AILE HEKIMLIGI':'AHEK','AILE HEKIMLIGI UZMANI':'AHEK','DAHILIYE':'D
 let IDX={};
 const norm=s=>String(s??'').replaceAll('İ','I').replaceAll('ı','i').normalize('NFKD').replace(/\p{M}/gu,'').toUpperCase().replace(/\s+/g,' ').trim();
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Inline onclick niteliğindeki fonksiyon argümanları için: esc() yalnızca HTML-escape yapar, ama
+// tarayıcı onclick içeriğini JS olarak derlemeden ÖNCE HTML entity'lerini decode eder —
+// yani &#39; tekrar ' olur ve içinde tek tırnak geçen (Excel'den gelen) bir doktor/eczane
+// adı JS söz dizimini bozar (openCustomer('O'NEIL',...) gibi), buton sessizce çalışmaz
+// hale gelir. Önce JS string literal kaçışı (\ ve ') uygulanır, esc() dıştan sarar.
+const escAttr=s=>esc(String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
 const n=v=>Number.isFinite(Number(v))?Number(v):0;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const fmtTL=v=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY',maximumFractionDigits:0}).format(n(v));
