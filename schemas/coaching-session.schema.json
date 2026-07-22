@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pharmainsight.local/schemas/coaching-session.schema.json",
+  "title": "PharmaInsight GROW 360 Coaching Session",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "representative",
+    "manager",
+    "sessionDate",
+    "sessionType",
+    "status",
+    "observedCalls",
+    "competencyRatings",
+    "developmentGoals",
+    "auditLog"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "6.0" },
+    "id": { "type": "string", "minLength": 1 },
+    "representative": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "positionCode": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "manager": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "type": "string" } },
+      "additionalProperties": true
+    },
+    "sessionDate": { "type": "string", "format": "date" },
+    "sessionType": {
+      "enum": ["joint_field_visit", "one_to_one", "follow_up", "skill_practice", "other"]
+    },
+    "status": { "enum": ["draft", "in_progress", "completed", "replanned"] },
+    "province": { "type": ["string", "null"] },
+    "bricks": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "focusCompetencies": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "contextMetrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["metricId", "label", "status", "source"],
+        "properties": {
+          "metricId": { "type": "string" },
+          "label": { "type": "string" },
+          "value": { "type": ["number", "string", "null"] },
+          "previousValue": { "type": ["number", "string", "null"] },
+          "change": { "type": ["number", "string", "null"] },
+          "unit": { "type": ["string", "null"] },
+          "period": { "type": ["string", "null"] },
+          "source": { "type": "string" },
+          "formula": { "type": ["string", "null"] },
+          "status": { "enum": ["available", "missing", "incompatible", "estimated"] },
+          "qualityNotes": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": true
+      }
+    },
+    "observedCalls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "customerName", "customerType", "brick", "observationNote"],
+        "properties": {
+          "id": { "type": "string" },
+          "customerName": { "type": "string" },
+          "customerType": { "enum": ["doctor", "pharmacy", "other"] },
+          "branch": { "type": ["string", "null"] },
+          "unit": { "type": ["string", "null"] },
+          "brick": { "type": "string" },
+          "visitDateTime": { "type": ["string", "null"] },
+          "planned": { "type": ["boolean", "null"] },
+          "durationMinutes": { "type": ["number", "null"], "minimum": 0 },
+          "visitGoal": { "type": ["string", "null"] },
+          "productFocus": { "type": ["string", "null"] },
+          "resourceUsed": { "type": ["string", "null"] },
+          "openQuestionCount": { "type": "integer", "minimum": 0, "default": 0 },
+          "closedQuestionCount": { "type": "integer", "minimum": 0, "default": 0 },
+          "probeQuestionCount": { "type": "integer", "minimum": 0, "default": 0 },
+          "spin": {
+            "type": "object",
+            "properties": {
+              "situation": { "$ref": "#/$defs/spinStage" },
+              "problem": { "$ref": "#/$defs/spinStage" },
+              "implication": { "$ref": "#/$defs/spinStage" },
+              "needPayoff": { "$ref": "#/$defs/spinStage" }
+            },
+            "additionalProperties": false
+          },
+          "presentation": { "type": "object", "additionalProperties": true },
+          "objections": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "commitment": { "type": ["string", "null"] },
+          "nextStep": { "type": ["string", "null"] },
+          "followUpDate": { "type": ["string", "null"], "format": "date" },
+          "observationNote": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "competencyRatings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterionId", "status"],
+        "properties": {
+          "criterionId": { "type": "string" },
+          "score": { "type": ["integer", "null"], "minimum": 1, "maximum": 5 },
+          "status": { "enum": ["observed", "partly_observed", "not_observed", "not_assessed"] },
+          "evidenceCallIds": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "evidenceNote": { "type": ["string", "null"] },
+          "classification": { "enum": ["strength", "expected", "development", "not_assessed"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "employeeReflection": {
+      "type": "object",
+      "properties": {
+        "whatWentWell": { "type": ["string", "null"] },
+        "whatWasDifficult": { "type": ["string", "null"] },
+        "chosenFocus": { "type": ["string", "null"] },
+        "employeeStatement": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "growConversation": {
+      "type": "object",
+      "properties": {
+        "goal": { "type": ["string", "null"] },
+        "reality": { "type": ["string", "null"] },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "wayForward": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "developmentGoals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "competencyId",
+          "currentState",
+          "targetBehavior",
+          "implementationSteps",
+          "measurementMethod",
+          "dataSource",
+          "reviewDate",
+          "employeeCommitment",
+          "managerSupport",
+          "status"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "competencyId": { "type": "string" },
+          "currentState": { "type": "string", "minLength": 1 },
+          "evidenceCallIds": { "type": "array", "items": { "type": "string" } },
+          "targetBehavior": { "type": "string", "minLength": 1 },
+          "implementationSteps": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "measurementMethod": { "type": "string", "minLength": 1 },
+          "baselineValue": { "type": ["number", "string", "null"] },
+          "targetValue": { "type": ["number", "string", "null"] },
+          "unit": { "type": ["string", "null"] },
+          "dataSource": { "type": "string", "minLength": 1 },
+          "checkFrequency": { "type": ["string", "null"] },
+          "reviewDate": { "type": "string", "format": "date" },
+          "employeeCommitment": { "type": "string", "minLength": 1 },
+          "managerSupport": { "type": "string", "minLength": 1 },
+          "successEvidence": { "type": ["string", "null"] },
+          "status": { "enum": ["planned", "in_progress", "completed", "replanned"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "followUps": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "languageWarnings": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "auditLog": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timestamp", "action"],
+        "properties": {
+          "timestamp": { "type": "string" },
+          "action": { "type": "string" },
+          "actor": { "type": ["string", "null"] },
+          "details": { "type": ["object", "null"] }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "$defs": {
+    "spinStage": {
+      "type": "object",
+      "properties": {
+        "used": { "type": "boolean", "default": false },
+        "question": { "type": ["string", "null"] },
+        "newInformation": { "type": ["string", "null"] },
+        "linkedToMessage": { "type": ["boolean", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

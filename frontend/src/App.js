@@ -5,8 +5,9 @@ import "./App.css";
 
 // Components
 import Dashboard from "./components/Dashboard";
-import AICoach from "./components/AICoach";  
+import AICoach from "./components/AICoach";
 import Login from "./components/Login";
+import CoachingEngine from "./components/coaching/CoachingEngine";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -58,6 +59,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/ai-coach" element={<AICoach />} />
+              <Route path="/coaching-engine" element={<CoachingEngine />} />
             </Routes>
           )}
         </BrowserRouter>
