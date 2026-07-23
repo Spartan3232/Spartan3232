@@ -9,7 +9,7 @@ function changePeriod(v){STATE.period=v;IDX.cache.clear();renderSideStatus();ren
 function changeIMSPeriod(v){STATE.imsPeriod=v;reindex();renderPage()}
 function go(page){STATE.page=page;STATE.rep=null;STATE.brick=null;STATE.customerPage=0;closeSidebar();renderNav();renderPage();window.scrollTo(0,0)}
 function hero(title,sub,actions=''){return `<div class="hero"><div><h1>${title}</h1><p>${sub}</p></div><div class="hero-actions">${actions}</div></div>`}
-function kpi(label,value,foot,color='blue',iconClass='icon-blue'){return `<div class="card kpi"><div class="kpi-label">${label}</div><div class="kpi-value ${color}">${value}</div><div class="kpi-foot">${foot}</div><div class="kpi-icon ${iconClass}">•</div></div>`}
+function kpi(label,value,foot,color='blue',iconClass='icon-blue'){return `<div class="card kpi"><div class="kpi-top"><div class="kpi-icon ${iconClass}">•</div><div class="kpi-label">${label}</div></div><div class="kpi-value ${color}">${value}</div><div class="kpi-foot">${foot}</div></div>`}
 function progress(v){const x=clamp(n(v),0,130);return `<div class="progress"><span style="width:${Math.min(x,100)}%;background:${pctColor(x)}"></span></div>`}
 
 function changeMapLayer(v){STATE.mapLayer=v;renderPage()}

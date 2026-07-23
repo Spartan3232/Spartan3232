@@ -4,6 +4,40 @@ Türkiye ilaç sektöründe bir bölge müdürü (G3 Akdeniz, 7 temsilci + 1 bo�
 için saha performans, koçluk ve raporlama uygulaması. Tek bir taşınabilir HTML
 dosyası olarak dağıtılır; kurulum gerektirmez, veriler tarayıcıda kalır.
 
+## Tasarım dili — iPadOS tarzı master-detail
+
+Sol modül menüsü (sidebar) + üst sabit arama/dönem çubuğu (topbar) + sayfa
+içeriği. Temsilci 360°, Brick 360°, Doktor/Eczane 360° ve Ürün & Rakip
+sayfaları `.md-shell` düzenini kullanır: ortada filtrelenebilir liste, sağda
+seçili kaydın **kalıcı** 360° detay paneli (artık modal değil — bkz.
+`src/app/pi-v6-workspace-layer.js` `renderRepDetail`/`renderBrickDetail`,
+`renderCustomerDetail` (products.js), `renderCustomerDetail`
+(pi-v6-workspace-layer.js)). Detay panelindeki sekmeler `.segmented`
+bileşenidir; Temsilci 360°'de 5 segment (Performans/Ziyaret/Ürün/Müşteri/
+Koçluk), Brick 360°'de 4 (Koçluk hariç — brick'in koçluk kaydı olmaz).
+Mobilde (≤820px) liste ve detay birbirini "iter" — `.md-shell.has-detail`
+listeyi gizler, detay tam genişlik açılır, "← Liste" ile geri dönülür.
+
+Diğer 9 sayfa (Dashboard, Karar Merkezi, Forecast, Plan, Arşiv, Veri
+Kalitesi, GROW, Rapor Merkezi, Veri Yükle) `.md-shell` düzenine
+**zorlanmadı** — bunlar doğal olarak liste+detay şeklinde değil; yeni tema/
+kart/KPI/ayırıcı görsel dilini aldılar ama kendi mevcut sayfa yapılarını
+korudular. GROW zaten kendi 3 kolonlu (adım nav/stage/aside) stüdyo
+yapısına sahipti, yalnızca yeniden derilendirildi.
+
+Açık/koyu tema: yalnızca manuel anahtar (topbar'daki güneş/ay ikonu),
+`toggleTheme()`/`initTheme()` (`src/state.js`), `localStorage('pi_theme')`
+ile kalıcı, varsayılan açık. Tüm renkler `:root`/`[data-theme="dark"]`
+CSS custom property'leri üzerinden tanımlı (`src/styles/base.css`); paylaşılan
+JS renk yardımcıları (`pctColor`) de `var(--success/--warning/--danger)`
+döndürür ki inline style'lar da temaya uysun.
+
+Eski ortalanmış modal (`showModal`/`closeModal`) artık sağdan kayan bir panel
+(`.side-panel`/`.panel-scrim`) — fonksiyon imzaları ve 5 çağrı yeri
+(Yönetici Analizi, Ürün/Karar/Manuel aksiyon — Müşteri/Ürün detayı artık
+kalıcı panele taşındığı için `showModal` kullanmıyor) değişmeden, yalnızca
+görsel olarak.
+
 ## Sayfalar (nav)
 
 | id | Ad | İşlev |

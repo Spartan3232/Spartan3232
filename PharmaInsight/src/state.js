@@ -1,4 +1,8 @@
 'use strict';
+// Tema: yalnızca manuel anahtar (sistem tercihini izlemez), localStorage'da kalıcı, varsayılan açık.
+function initTheme(){const saved=(()=>{try{return localStorage.getItem('pi_theme')}catch(e){return null}})();if(saved==='dark')document.documentElement.setAttribute('data-theme','dark')}
+function toggleTheme(){const dark=document.documentElement.getAttribute('data-theme')==='dark';if(dark){document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('pi_theme','light')}catch(e){}}else{document.documentElement.setAttribute('data-theme','dark');try{localStorage.setItem('pi_theme','dark')}catch(e){}}}
+initTheme();
 const ICONS={
  home:'<path d="M3 11 12 3l9 8"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path>',
  decision:'<path d="M12 3v18"></path><path d="M5 8h14"></path><path d="M5 16h14"></path><circle cx="7" cy="8" r="2"></circle><circle cx="17" cy="16" r="2"></circle>',
@@ -18,7 +22,7 @@ const navItems=[
  ['main','Yönetici Özeti','home','ANA ANALİZ'],['decisions','Aksiyon Merkezi','decision'],['forecast','Trend & Forecast','trend'],['reps','Temsilci 360°','users'],['bricks','Brick 360°','grid'],['customers','Doktor / Eczane 360°','customer'],['products','Ürün & Rakip','product'],['plan','Plan & Frekans','calendar'],['archive','Dönem Arşivi','archive','YÖNETİM'],['quality','Veri Kalitesi','quality'],['grow','GROW Koçluk','grow'],['reports','Rapor Merkezi','report'],['upload','Veri Yükle','upload']
 ];
 let DATA=JSON.parse(document.getElementById('embeddedData').textContent);DATA.actions=DATA.actions||{};DATA.manualActions=DATA.manualActions||[];DATA.snapshots=DATA.snapshots||[];
-const STATE={page:'main',period:'latest',imsPeriod:'auto',rep:null,brick:null,repTab:'summary',query:'',customerPage:0,mapLayer:'real',scenario:{plan:15,freq:20,orders:10}};
+const STATE={page:'main',period:'latest',imsPeriod:'auto',rep:null,brick:null,repTab:'summary',query:'',customerPage:0,mapLayer:'real',scenario:{plan:15,freq:20,orders:10},customer:null,customerBrick:'',product:null};
 const STD={AHEK:10,DAHILIYE:50,ORTOPEDI:30,ROMATOLOJI:10,DERMATOLOJI:10,'KADIN DOGUM':50,ECZACI:60};
 const FREQ={AHEK:4,DAHILIYE:3,ORTOPEDI:3,ROMATOLOJI:3,DERMATOLOJI:3,'KADIN DOGUM':3,ECZACI:2};
 const MAX_SELECTION_TARGET=Object.values(STD).reduce((a,b)=>a+b,0);
@@ -40,7 +44,7 @@ const fmtPct=v=>v==null||!Number.isFinite(Number(v))?'—':'%'+Number(v).toLocal
 const initials=s=>String(s||'').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
 const titleTR=s=>String(s||'').toLocaleLowerCase('tr-TR').replace(/(^|[\s-])([a-zçğıöşü])/g,(m,p,c)=>p+c.toLocaleUpperCase('tr-TR'));
 const icon=name=>`<svg viewBox="0 0 24 24">${ICONS[name]||ICONS.grid}</svg>`;
-const pctColor=v=>v>=100?'#00a878':v>=85?'#f59e0b':'#ef3f53';
+const pctColor=v=>v>=100?'var(--success)':v>=85?'var(--warning)':'var(--danger)';
 const riskClass=v=>v>=65?'b-red':v>=35?'b-amber':'b-green';
 const perfClass=v=>v>=100?'b-green':v>=85?'b-amber':'b-red';
 const badge=(value,type='perf')=>`<span class="badge ${type==='risk'?riskClass(value):perfClass(value)}">${type==='risk'?'Risk '+Math.round(value):fmtPct(value)}</span>`;
