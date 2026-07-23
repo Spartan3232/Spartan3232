@@ -1,0 +1,5 @@
+// Yazdır/PDF (tarayıcı print) ve panoya kopyalama yardımcıları.
+function printPage(){window.print()}
+function copyText(t){navigator.clipboard?.writeText(t).then(()=>toast('Metin kopyalandı')).catch(()=>{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();toast('Metin kopyalandı')})}
+function copyWhatsApp(){const r=regionMetric(),top=decisionData().slice(0,3);copyText(`G3 Akdeniz Yönetici Özeti\nRealizasyon: ${fmtPct(r.real)} | Satış: ${fmtTL(r.s)} | Açık: ${fmtTL(r.gap)}\nPlan uyumu: ${fmtPct(r.plan)} | Frekans: ${fmtPct(r.freq)} | Kaveraj: ${fmtPct(r.coverage)}\nRiskli brick: ${r.riskBricks}/${r.bricks}\n\nİlk 3 öncelik:\n${top.map((x,i)=>`${i+1}. ${x.subject}: ${x.reason}`).join('\n')}`)}
+function copyDecisionSummary(){copyText(decisionRows().slice(0,15).map((x,i)=>`${i+1}. ${x.type} — ${x.subject}: ${x.reason}. Durum: ${x._rec.status}. Son tarih: ${x._rec.due||'—'}. Aksiyon: ${x._rec.customAction}`).join('\n'))}

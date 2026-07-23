@@ -1,0 +1,5 @@
+// Excel dosyalarını tarayıcıda okumak için ortak yardımcılar.
+// Bağımlılık: global `norm()` (src/state.js) ve global `XLSX` (SheetJS, <head> CDN script).
+function readWB(file,cb){if(!window.XLSX){toast('Excel okuma kütüphanesi yüklenemedi. İnternet bağlantısını kontrol et.');return}const r=new FileReader();r.onload=e=>{try{cb(XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true}))}catch(err){toast('Dosya okunamadı: '+err.message)}};r.readAsArrayBuffer(file)}
+function findHeader(wb,required){for(const sn of wb.SheetNames){const grid=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null});for(let r=0;r<Math.min(grid.length,8);r++){const cells=(grid[r]||[]).map(norm),cols={};for(const req of required){const i=cells.indexOf(norm(req));if(i>=0)cols[req]=i}if(Object.keys(cols).length===required.length)return{sheet:sn,grid,header:r,cols,rows:grid.slice(r+1).filter(row=>row.some(c=>c!==null&&c!==''))}}}return null}
+function toNum(v){if(v==null||v==='')return null;if(typeof v==='number')return Number.isFinite(v)?v:null;const z=Number(String(v).trim().replace(/\./g,'').replace(',','.'));return Number.isFinite(z)?z:null}
