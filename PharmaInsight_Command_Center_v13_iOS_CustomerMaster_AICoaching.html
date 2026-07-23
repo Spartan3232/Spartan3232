@@ -522,6 +522,15 @@ const FREQ={AHEK:4,DAHILIYE:3,ORTOPEDI:3,ROMATOLOJI:3,DERMATOLOJI:3,'KADIN DOGUM
 const SPEC={'AILE HEKIMLIGI':'AHEK','AILE HEKIMLIGI UZMANI':'AHEK','DAHILIYE':'DAHILIYE','IC HASTALIKLARI':'DAHILIYE','ORTOPEDI':'ORTOPEDI','ORTOPEDI VE TRAVMATOLOJI':'ORTOPEDI','ROMATOLOJI':'ROMATOLOJI','DERMATOLOJI':'DERMATOLOJI','DERI VE ZUHREVI HASTALIKLAR':'DERMATOLOJI','KADIN DOGUM':'KADIN DOGUM','KADIN HASTALIKLARI VE DOGUM':'KADIN DOGUM','ECZACI':'ECZACI'};
 let IDX={};
 const norm=s=>String(s??'').replaceAll('İ','I').replaceAll('ı','i').normalize('NFKD').replace(/\p{M}/gu,'').toUpperCase().replace(/\s+/g,' ').trim();
+function dedupData(){
+  if(DATA.__deduped)return;
+  const dedupArr=(arr,keyFn)=>{const seen=new Set(),out=[];for(const x of (arr||[])){const k=keyFn(x);if(seen.has(k))continue;seen.add(k);out.push(x);}return out;};
+  DATA.ziyaret=dedupArr(DATA.ziyaret, x=>[x.date,norm(x.customer),norm(x.specialty),norm(x.rep||''),x.planned].join('|'));
+  DATA.siparis=dedupArr(DATA.siparis, x=>[x.date,norm(x.pharmacy),norm(x.product),x.qty,norm(x.rep||'')].join('|'));
+  DATA.havuz=dedupArr(DATA.havuz, x=>[norm(x.customer),norm(x.brick),norm(x.specialty),norm(x.institution||'')].join('|'));
+  DATA.__deduped=true;
+}
+
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const n=v=>Number.isFinite(Number(v))?Number(v):0;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -553,6 +562,7 @@ function reindex(){
  const display=new Map();for(const list of [DATA.sel||[],DATA.ziyaret||[],DATA.siparis||[]])for(const x of list){const r=x.rep;if(r&&!display.has(norm(r)))display.set(norm(r),r)}
  const repByNorm=new Map();for(const r of reps){const rn=norm(r.repName)==='BOS'?'BOS POZISYON':norm(r.repName);repByNorm.set(rn,r);if(!display.has(rn))display.set(rn,rn==='BOS POZISYON'?'Boş Pozisyon':titleTR(r.repName))}
  const assignment=new Map();for(const b of bricks){const rn=norm(b.repName)==='BOS'?'BOS POZISYON':norm(b.repName);arrMapPush(assignment,rn,norm(b.brick))}
+ dedupData();
  const selByRep=new Map(),selByBrick=new Map(),visitByRep=new Map(),orderByRep=new Map(),orderByBrick=new Map(),poolByBrick=new Map(),poolByName=new Map();
  for(const x of DATA.sel||[]){arrMapPush(selByRep,norm(x.rep),x);arrMapPush(selByBrick,norm(x.brick),x)}
  for(const x of DATA.ziyaret||[])arrMapPush(visitByRep,norm(x.rep),x);
@@ -726,6 +736,14 @@ function customerRows(){
     add(r.bricks,br); add(r.reps,displayRep(rn)); add(r.repNorms,rn); add(r.cities,x.il); add(r.districts,x.ilce); add(r.titles,x.unvan);
     r.selected = r.selected || x.selected!==false || (DATA.sel||[]).some(s=>norm(s.customer)===key);
     r.sourceCount++; r.raw.push(x);
+  }
+  // enrich with havuz (kurum/ünite/il/ilçe) even when the active view (seçki) lacks this data
+  for(const [key,r] of map){
+    const poolMatches=IDX.poolByName.get(key)||[];
+    for(const px of poolMatches){
+      add(r.institutions,px.institution||px.kurum); add(r.units,px.unit||px.unite||px.institution||px.kurum);
+      add(r.bricks,px.brick||''); add(r.cities,px.il); add(r.districts,px.ilce); add(r.titles,px.unvan);
+    }
   }
   const out=[];
   for(const [key,r] of map){
