@@ -40,6 +40,13 @@ sıra: ana blok → `pages/grow.js` (`growV5Script`) → `app/pi-v6-workspace-la
 `growSave`, `openRep` gibi) art arda ezer, son yüklenen kazanır. Bu sırayı
 bozma.
 
+**CSS grid + geniş tablo notu:** Bir `.data-table` (min-width:780px) içeren yeni
+bir grid düzeni eklersen, grid'in DOĞRUDAN öğesine (genelde `.card`, bazen
+sarmalayıcı bir `div`/`aside`) `min-width:0` ekle — yoksa grid öğesi
+tablonun min-content genişliğinin altına küçülemez ve mobilde/dar ekranda
+sayfa yatay taşar (bkz. Faz 6 denetimi: `.forecast-layout` ve `.quality-grid`
+bu yüzden taşıyordu, `.table-wrap{overflow:auto}` tek başına yetmiyor).
+
 `fixtures/real-data.json` **gerçek** iş verisidir (gerçek temsilci/doktor adları,
 gerçek satış rakamları) — bilinçli olarak bu depoya işlenmiştir (bkz. proje geçmişi).
 Yeni test/demo verisi eklerken bunu asla bu dosyayla karıştırma; ayrı, açıkça
