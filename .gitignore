@@ -27,8 +27,9 @@ next-env.d.ts
 
 # Production builds
 /build
-dist/
-dist
+dist/*
+# Tek dosyalık PharmaInsight teslimatı — bilinçli olarak commit'e dahil ediliyor
+!dist/PharmaInsight_Command_Center_GROW360.html
 
 # Environment files (comprehensive coverage)
 

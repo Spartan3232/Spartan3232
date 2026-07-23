@@ -11,7 +11,8 @@ import {
   Zap,
   Award,
   Users,
-  Target
+  Target,
+  ClipboardCheck
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -176,23 +177,38 @@ const Dashboard = () => {
         )}
 
         {/* Main Chat Action */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 text-center mb-6">
-          <Brain className="w-20 h-20 text-purple-500 mx-auto mb-4" />
-          <h2 className="text-3xl font-bold text-gray-800 mb-4">AI ROTA Koçluk Chat</h2>
-          <p className="text-gray-600 mb-6">
-            Chat üzerinden başlık seçin, seviye belirtin ve AI koçunuzdan detaylı geri bildirim alın
-          </p>
-          
-          <Link
-            to="/ai-coach"
-            className="inline-flex items-center space-x-3 px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-2xl hover:from-purple-600 hover:to-pink-700 transition-all duration-300 text-lg font-semibold"
-          >
-            <MessageCircle className="w-6 h-6" />
-            <span>ROTA Koçluk Chat Başlat</span>
-          </Link>
-          
-          <div className="mt-6 text-sm text-gray-500">
-            <p>💡 Örnek kullanım: "Başlık: Etkili giriş, Seviye: Gelişmeli"</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+            <Brain className="w-16 h-16 text-purple-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">AI ROTA Koçluk Chat</h2>
+            <p className="text-gray-600 mb-6 text-sm">
+              Chat üzerinden başlık seçin, seviye belirtin ve AI koçunuzdan detaylı geri bildirim alın
+            </p>
+            <Link
+              to="/ai-coach"
+              className="inline-flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-2xl hover:from-purple-600 hover:to-pink-700 transition-all duration-300 font-semibold"
+            >
+              <MessageCircle className="w-5 h-5" />
+              <span>ROTA Koçluk Chat Başlat</span>
+            </Link>
+            <div className="mt-4 text-xs text-gray-500">
+              <p>💡 Örnek kullanım: "Başlık: Etkili giriş, Seviye: Gelişmeli"</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+            <ClipboardCheck className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">GROW 360 Koçluk Motoru</h2>
+            <p className="text-gray-600 mb-6 text-sm">
+              Gözlenen görüşmelere dayanan, kanıt zorunlu yetkinlik değerlendirmesi ve yapılandırılmış gelişim hedefi kaydı
+            </p>
+            <Link
+              to="/coaching-engine"
+              className="inline-flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-blue-500 to-teal-600 text-white rounded-2xl hover:from-blue-600 hover:to-teal-700 transition-all duration-300 font-semibold"
+            >
+              <ClipboardCheck className="w-5 h-5" />
+              <span>GROW 360 Koçluğu Başlat</span>
+            </Link>
           </div>
         </div>
 

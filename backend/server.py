@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import json
 
+import coaching_engine
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -19,9 +21,11 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+coaching_engine.set_db(db)
 
 app = FastAPI(title="ROTA Koçluk Chat API")
 api_router = APIRouter(prefix="/api")
+api_router.include_router(coaching_engine.coaching_router)
 
 # ROTA Verimlilik Başlıkları ve NASIL Metodolojisi
 ROTA_BASLIKLAR = {
@@ -282,6 +286,11 @@ async def create_user(user_data: UserCreate):
     user_doc = prepare_for_mongo(user.dict())
     await db.users.insert_one(user_doc)
     return user
+
+@api_router.get("/users")
+async def list_users():
+    users_raw = await db.users.find({}, {"_id": 0}).to_list(500)
+    return {"users": [parse_from_mongo(u) for u in users_raw]}
 
 @api_router.post("/chat")
 async def rota_chat(chat_request: ChatRequest):
