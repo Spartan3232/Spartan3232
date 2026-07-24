@@ -1301,19 +1301,26 @@ function c7AIGoals(){var s=c7Ensure();if(!s.rep)return toast('Önce temsilci se�
  var weak=catAvg.slice(0,2);
  s.goals=(s.goals||[]).filter(function(g){return g.source!=='ai';});
  var ctx=c7Context();
+ var toneKey=s.commentTone||'profesyonel';
+ var isPos=s.commentFocus!=='olumsuz';
+ var commitTail={profesyonel:'',motivasyon:' Bu ilerleme kısa sürede fark yaratacaktır.',cesaretlendirici:' Bu süreçte yalnız değilim, birlikte ilerleyeceğiz.'}[toneKey]||'';
+ var supportLead={profesyonel:'',motivasyon:'Potansiyelini ortaya çıkarmak için ',cesaretlendirici:'Bu gelişim sürecinde yanında olmak için '}[toneKey]||'';
  weak.forEach(function(w){
   var worstCrit=w.crit.slice().sort(function(a,b){var ca=s.competencies[a.id],cb=s.competencies[b.id];return ((ca&&ca.score!=null)?ca.score:3)-((cb&&cb.score!=null)?cb.score:3);})[0];
   var action=C7_DEV_ACTIONS[w.id]||'İlgili davranışları rol standardına taşımak.';
   var baseline=w.avg.toFixed(1);
+  var currentState=isPos
+   ?('Yetkinlik grubu ortalaması '+baseline+'/5. '+w.label+' alanı, saha verisine göre öncelikli bir gelişim fırsatı olarak belirlendi.'+(toneKey==='motivasyon'?' Doğru odaklanmayla hızla ilerleme sağlanabilir.':toneKey==='cesaretlendirici'?' Bu süreçte adım adım destek sağlanacaktır.':''))
+   :('Yetkinlik grubu ortalaması '+baseline+'/5; saha verisine göre '+(w.label.toLowerCase())+' alanında tutarlılık sınırlı ve ivedi ele alınması gerekiyor.');
   var g={id:c7Id(),source:'ai',competencyId:worstCrit?worstCrit.id:'',title:(w.label)+' yetkinliğini geliştirmek',
-   currentState:'Yetkinlik grubu ortalaması '+baseline+'/5; saha verisine göre '+(w.label.toLowerCase())+' alanında tutarlılık sınırlı.',
+   currentState:currentState,
    evidence:'',targetBehavior:action,
    implementationSteps:['İlgili davranışı bir sonraki 2 ortak ziyarette uygulamak','Uygulama sonrası kısa öz değerlendirme yapmak','Yöneticiyle haftalık kısa check-in ile ilerlemeyi gözden geçirmek'].join('\n'),
    measurementMethod:'Sonraki 2 ortak saha ziyaretinde ilgili davranışın en az %70 oranında gözlenmesi ve yetkinlik puanının en az 4/5 seviyesine çıkması.',
    baseline:baseline,targetValue:'4',unit:'puan (5 üzerinden)',dataSource:'Yönetici gözlem formu ve ortak saha ziyareti',checkFrequency:'Her ortak saha günü',
    followUpDate:s.followUpDate||c7Plus(14),
-   employeeCommitment:'Takip tarihine kadar '+(w.label.toLowerCase())+' alanında önerilen davranışı uygulayacağım ve sonucu birlikte değerlendireceğiz.',
-   managerSupport:'Ortak saha ziyareti planlamak, rol-play/örnek senaryo çalışması yapmak ve haftalık kısa geri bildirim vermek.',
+   employeeCommitment:'Takip tarihine kadar '+(w.label.toLowerCase())+' alanında önerilen davranışı uygulayacağım ve sonucu birlikte değerlendireceğiz.'+commitTail,
+   managerSupport:supportLead+(supportLead?'ortak':'Ortak')+' saha ziyareti planlamak, rol-play/örnek senaryo çalışması yapmak ve haftalık kısa geri bildirim vermek.',
    successEvidence:'Takip ziyaretinde davranışın gözlenmesi ve ilgili kriterlerin en az "Beklenen Düzey" (3/5) üzerine çıkması.',
    status:'Planlandı'};
   s.goals.push(g);
